@@ -1,7 +1,26 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileImage, CheckCircle, Video, Image } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { 
+  Box, 
+  Typography, 
+  Button, 
+  Card, 
+  CardContent, 
+  Grid, 
+  Container,
+  ToggleButton,
+  ToggleButtonGroup,
+  Paper,
+  Chip,
+  Alert
+} from '@mui/material';
+import { 
+  CloudUpload as Upload, 
+  Image as ImageIcon, 
+  CheckCircle, 
+  VideoFile as Video,
+  PhotoLibrary as Image 
+} from '@mui/icons-material';
 import { useToast } from '@/hooks/use-toast';
 
 const UploadPage = () => {
@@ -231,161 +250,235 @@ const UploadPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
+    <Box sx={{ 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, #0A0E1A 0%, #1E293B 25%, #0F172A 50%, #1E40AF 100%)',
+      position: 'relative',
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.1) 0%, transparent 50%)',
+        pointerEvents: 'none'
+      }
+    }}>
+      <Container maxWidth="lg" sx={{ py: 4, position: 'relative', zIndex: 1 }}>
+        <Box sx={{ maxWidth: '4xl', mx: 'auto' }}>
           {/* Header */}
-          <div className="text-center mb-12 animate-fade-in-up">
-            <h1 className="text-5xl font-bold text-foreground mb-4">
+          <Box sx={{ textAlign: 'center', mb: 8 }}>
+            <Typography variant="h1" sx={{ mb: 2, fontWeight: 700 }}>
               AOI Inspector
-            </h1>
-            <h2 className="text-3xl font-semibold text-primary mb-6">
+            </Typography>
+            <Typography variant="h3" color="primary" sx={{ mb: 3, fontWeight: 600 }}>
               Upload PCB {uploadMode === 'video' ? 'Video' : 'Images'} for Inspection
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            </Typography>
+            <Typography variant="h6" color="text.secondary" sx={{ maxWidth: '600px', mx: 'auto' }}>
               Drag and drop your PCB {uploadMode} below or click to browse. Our advanced optical inspection 
               system will analyze each {uploadMode === 'video' ? 'frame' : 'board'} for defects and quality issues.
-            </p>
-          </div>
+            </Typography>
+          </Box>
 
           {/* Mode Selector */}
-          <div className="flex justify-center mb-8 animate-fade-in-up">
-            <div className="industrial-card p-2 flex rounded-xl">
-              <Button
-                variant={uploadMode === 'images' ? 'default' : 'ghost'}
-                onClick={() => {
-                  setUploadMode('images');
-                  setFiles([]);
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 6 }}>
+            <Card sx={{ 
+              p: 1, 
+              backdropFilter: 'blur(10px)',
+              backgroundColor: 'rgba(17, 24, 39, 0.8)',
+              border: '1px solid rgba(59, 130, 246, 0.2)'
+            }}>
+              <ToggleButtonGroup
+                value={uploadMode}
+                exclusive
+                onChange={(_, newMode) => {
+                  if (newMode) {
+                    setUploadMode(newMode);
+                    setFiles([]);
+                  }
                 }}
-                className="flex items-center px-6 py-3 rounded-lg"
+                sx={{ gap: 1 }}
               >
-                <Image className="mr-2" size={20} />
-                Images
-              </Button>
-              <Button
-                variant={uploadMode === 'video' ? 'default' : 'ghost'}
-                onClick={() => {
-                  setUploadMode('video');
-                  setFiles([]);
-                }}
-                className="flex items-center px-6 py-3 rounded-lg"
-              >
-                <Video className="mr-2" size={20} />
-                Video
-              </Button>
-            </div>
-          </div>
+                <ToggleButton value="images" sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Image />
+                  Images
+                </ToggleButton>
+                <ToggleButton value="video" sx={{ px: 3, py: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Video />
+                  Video
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Card>
+          </Box>
 
           {/* Upload Zone */}
-          <div className="animate-fade-in-up animate-stagger-1">
-            <div
-              className={`upload-zone p-12 text-center cursor-pointer min-h-[400px] flex flex-col items-center justify-center ${
-                isDragOver ? 'border-primary bg-primary/5' : ''
-              }`}
-              onDrop={handleDrop}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragOver(true);
-              }}
-              onDragLeave={() => setIsDragOver(false)}
-              onClick={() => document.getElementById('file-input')?.click()}
-            >
-              <div className="mb-6">
+          <Card 
+            sx={{ 
+              minHeight: 400,
+              border: isDragOver ? '2px dashed' : '2px dashed',
+              borderColor: isDragOver ? 'primary.main' : 'rgba(59, 130, 246, 0.3)',
+              bgcolor: isDragOver ? 'rgba(59, 130, 246, 0.1)' : 'rgba(17, 24, 39, 0.6)',
+              backdropFilter: 'blur(10px)',
+              cursor: 'pointer',
+              transition: 'all 0.3s ease',
+              '&:hover': {
+                borderColor: 'primary.light',
+                bgcolor: 'rgba(59, 130, 246, 0.1)',
+                transform: 'translateY(-2px)',
+                boxShadow: '0 10px 25px rgba(59, 130, 246, 0.2)'
+              }
+            }}
+            onDrop={handleDrop}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onClick={() => document.getElementById('file-input')?.click()}
+          >
+            <CardContent sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              minHeight: 400,
+              textAlign: 'center',
+              p: 6
+            }}>
+              <Box sx={{ mb: 4 }}>
                 <Upload 
-                  size={80} 
-                  className={`mx-auto mb-4 transition-colors duration-300 ${
-                    isDragOver ? 'text-primary' : 'text-muted-foreground'
-                  }`} 
+                  sx={{ 
+                    fontSize: 80, 
+                    mb: 2,
+                    color: isDragOver ? 'primary.main' : 'text.secondary',
+                    transition: 'color 0.3s ease'
+                  }} 
                 />
                 {uploadMode === 'video' ? (
                   <Video 
-                    size={60} 
-                    className={`mx-auto transition-colors duration-300 ${
-                      isDragOver ? 'text-primary' : 'text-muted-foreground'
-                    }`} 
+                    sx={{ 
+                      fontSize: 60,
+                      color: isDragOver ? 'primary.main' : 'text.secondary',
+                      transition: 'color 0.3s ease'
+                    }} 
                   />
                 ) : (
-                  <FileImage 
-                    size={60} 
-                    className={`mx-auto transition-colors duration-300 ${
-                      isDragOver ? 'text-primary' : 'text-muted-foreground'
-                    }`} 
+                  <ImageIcon 
+                    sx={{ 
+                      fontSize: 60,
+                      color: isDragOver ? 'primary.main' : 'text.secondary',
+                      transition: 'color 0.3s ease'
+                    }} 
                   />
                 )}
-              </div>
+              </Box>
               
-              <h3 className="text-2xl font-semibold mb-4 text-foreground">
+              <Typography variant="h4" sx={{ mb: 2, fontWeight: 600 }}>
                 {isDragOver ? 'Drop files here' : 'Drag & drop files here'}
-              </h3>
+              </Typography>
               
-              <p className="text-lg text-muted-foreground mb-6">
-                or <span className="text-primary font-medium">click to browse</span>
-              </p>
+              <Typography variant="h6" color="text.secondary" sx={{ mb: 4 }}>
+                or <Typography component="span" color="primary" sx={{ fontWeight: 500 }}>click to browse</Typography>
+              </Typography>
               
-              <div className="text-sm text-muted-foreground space-y-1">
+              <Box sx={{ color: 'text.secondary' }}>
                 {uploadMode === 'video' ? (
-                  <>
-                    <p>Supported formats: MP4, AVI, MOV, WEBM</p>
-                    <p>Maximum file size: 100MB per video</p>
-                    <p>One video at a time</p>
-                  </>
+                  <Box>
+                    <Typography variant="body2">Supported formats: MP4, AVI, MOV, WEBM</Typography>
+                    <Typography variant="body2">Maximum file size: 100MB per video</Typography>
+                    <Typography variant="body2">One video at a time</Typography>
+                  </Box>
                 ) : (
-                  <>
-                    <p>Supported formats: JPG, PNG, WEBP</p>
-                    <p>Maximum file size: 20MB per image</p>
-                  </>
+                  <Box>
+                    <Typography variant="body2">Supported formats: JPG, PNG, WEBP</Typography>
+                    <Typography variant="body2">Maximum file size: 20MB per image</Typography>
+                  </Box>
                 )}
-              </div>
+              </Box>
               
               <input
                 id="file-input"
                 type="file"
                 multiple={uploadMode === 'images'}
                 accept={uploadMode === 'video' ? 'video/*' : 'image/*'}
-                className="hidden"
+                style={{ display: 'none' }}
                 onChange={handleFileInput}
               />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Uploaded Files Display */}
           {files.length > 0 && (
-            <div className="mt-8 animate-fade-in-up animate-stagger-2">
-              <div className="industrial-card p-6">
-                <h3 className="text-xl font-semibold mb-4 flex items-center">
-                  <CheckCircle className="mr-2 text-success" size={24} />
-                  Uploaded Files ({files.length})
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {files.map((file, index) => (
-                    <div key={index} className="flex items-center p-3 bg-muted rounded-lg">
-                      {uploadMode === 'video' ? (
-                        <Video className="mr-3 text-primary flex-shrink-0" size={20} />
-                      ) : (
-                        <FileImage className="mr-3 text-primary flex-shrink-0" size={20} />
-                      )}
-                      <span className="text-sm font-medium truncate">{file.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <Box sx={{ mt: 6 }}>
+              <Card sx={{
+                backdropFilter: 'blur(10px)',
+                backgroundColor: 'rgba(17, 24, 39, 0.8)',
+                border: '1px solid rgba(59, 130, 246, 0.2)'
+              }}>
+                <CardContent sx={{ p: 4 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                    <CheckCircle sx={{ mr: 1, color: 'success.main', fontSize: 28 }} />
+                    <Typography variant="h5" sx={{ fontWeight: 600 }}>
+                      Uploaded Files ({files.length})
+                    </Typography>
+                  </Box>
+                  <Grid container spacing={2}>
+                    {files.map((file, index) => (
+                      <Grid item xs={12} sm={6} md={4} key={index}>
+                        <Paper sx={{ 
+                          p: 2, 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          bgcolor: 'action.hover',
+                          borderRadius: 2
+                        }}>
+                          {uploadMode === 'video' ? (
+                            <Video sx={{ mr: 2, color: 'primary.main', flexShrink: 0 }} />
+                          ) : (
+                            <ImageIcon sx={{ mr: 2, color: 'primary.main', flexShrink: 0 }} />
+                          )}
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              fontWeight: 500,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {file.name}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </CardContent>
+              </Card>
+            </Box>
           )}
 
           {/* Start Inspection Button */}
-          <div className="mt-12 text-center animate-fade-in-up animate-stagger-3">
+          <Box sx={{ mt: 8, textAlign: 'center' }}>
             <Button
               onClick={startInspection}
-              size="lg"
-              className="btn-primary px-12 py-4 text-lg font-semibold rounded-xl"
+              variant="contained"
+              size="large"
+              sx={{ 
+                px: 6, 
+                py: 2, 
+                fontSize: '1.125rem',
+                fontWeight: 600,
+                borderRadius: 3
+              }}
+              startIcon={<Upload />}
             >
               Start Inspection
-              <Upload className="ml-2" size={20} />
             </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+          </Box>
+        </Box>
+      </Container>
+    </Box>
   );
 };
 

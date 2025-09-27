@@ -18,11 +18,11 @@
     --popover: 0 0% 100%;
     --popover-foreground: 215 25% 15%;
 
-    /* Industrial Blue Primary */
-    --primary: 213 94% 35%;
+    /* Analytics Dashboard Blue Primary */
+    --primary: 213 94% 68%;       /* #3B82F6 - Bright blue */
     --primary-foreground: 0 0% 100%;
-    --primary-light: 213 94% 45%;
-    --primary-dark: 213 94% 25%;
+    --primary-light: 213 94% 76%; /* #60A5FA - Light blue */
+    --primary-dark: 213 94% 60%;  /* #2563EB - Dark blue */
 
     /* Secondary - Light Industrial Gray */
     --secondary: 210 15% 95%;
@@ -36,23 +36,23 @@
     --accent: 200 95% 55%;
     --accent-foreground: 0 0% 100%;
 
-    /* Status Colors */
-    --success: 142 76% 36%;
+    /* Analytics Dashboard Status Colors */
+    --success: 160 84% 39%;       /* #10B981 - Analytics green */
     --success-foreground: 0 0% 100%;
-    --success-light: 142 76% 95%;
+    --success-light: 160 84% 85%;
     
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --warning-light: 38 92% 95%;
+    --warning: 38 92% 50%;        /* #F59E0B - Analytics orange */
+    --warning-foreground: 0 0% 0%;
+    --warning-light: 38 92% 90%;
 
-    --destructive: 0 84% 55%;
+    --destructive: 0 84% 60%;     /* #EF4444 - Bright red */
     --destructive-foreground: 0 0% 100%;
-    --destructive-light: 0 84% 95%;
+    --destructive-light: 0 84% 90%;
 
-    /* Industrial Surfaces */
-    --metallic: 220 10% 25%;
-    --metallic-light: 220 10% 35%;
-    --metallic-dark: 220 10% 15%;
+    /* Industrial Surfaces - Analytics Style */
+    --metallic: 215 16% 25%;      /* #374151 - Medium gray */
+    --metallic-light: 215 16% 35%; /* #4B5563 - Light gray */
+    --metallic-dark: 215 16% 15%;  /* #1F2937 - Dark gray */
 
     /* Borders & Inputs */
     --border: 214 20% 85%;
@@ -82,41 +82,50 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Analytics Dashboard Dark Theme */
+    --background: 220 26% 6%;     /* #0A0E1A - Very dark blue-black */
+    --foreground: 210 20% 98%;    /* #F9FAFB - Very light text */
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 13% 11%;          /* #111827 - Dark card background */
+    --card-foreground: 210 20% 98%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 13% 11%;
+    --popover-foreground: 210 20% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* Bright Blue Primary - Analytics Style */
+    --primary: 213 94% 68%;       /* #3B82F6 - Bright blue */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 215 16% 47%;     /* #6B7280 - Medium gray */
+    --secondary-foreground: 210 20% 98%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 217 19% 27%;         /* #374151 - Muted background */
+    --muted-foreground: 215 20% 65%; /* #9CA3AF - Muted text */
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 213 94% 68%;        /* Same as primary - bright blue */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    /* Status Colors - Analytics Style */
+    --destructive: 0 84% 60%;     /* #EF4444 - Bright red */
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --success: 160 84% 39%;       /* #10B981 - Analytics green */
+    --warning: 38 92% 50%;        /* #F59E0B - Analytics orange */
+
+    /* Borders and Inputs */
+    --border: 215 16% 25%;        /* #374151 - Subtle borders */
+    --input: 215 16% 25%;
+    --ring: 213 94% 68%;          /* Blue focus ring */
+
+    /* Sidebar */
+    --sidebar-background: 220 26% 6%;
+    --sidebar-foreground: 210 20% 98%;
+    --sidebar-primary: 213 94% 68%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 217 19% 27%;
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 215 16% 25%;
+    --sidebar-ring: 213 94% 68%;
   }
 }
 
@@ -127,6 +136,22 @@
 
   body {
     @apply bg-background text-foreground font-sans;
+  }
+
+  /* Force dark theme globally */
+  html.dark {
+    color-scheme: dark;
+  }
+
+  /* Override any white backgrounds */
+  .dark * {
+    border-color: hsl(var(--border));
+  }
+
+  /* Ensure all text is visible in dark mode */
+  .dark {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }
 
@@ -149,19 +174,64 @@
   }
 
   .status-pass {
-    @apply bg-success-light text-success border-l-4 border-success;
+    @apply bg-success/10 text-success border-l-4 border-success;
   }
 
   .status-questionable {
-    @apply bg-warning-light text-warning border-l-4 border-warning;
+    @apply bg-warning/10 text-warning border-l-4 border-warning;
   }
 
   .status-fail {
-    @apply bg-destructive-light text-destructive border-l-4 border-destructive;
+    @apply bg-destructive/10 text-destructive border-l-4 border-destructive;
   }
 
   .industrial-card {
-    @apply bg-card rounded-lg shadow-[var(--shadow-elevation)] border border-border/50 backdrop-blur-sm;
+    @apply bg-card text-card-foreground rounded-lg shadow-[var(--shadow-elevation)] border border-border/50 backdrop-blur-sm;
+  }
+
+  /* Force dark theme for inspection page elements */
+  .dark .industrial-card {
+    background-color: hsl(var(--card)) !important;
+    color: hsl(var(--card-foreground)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+
+  .dark table {
+    background-color: transparent !important;
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .dark th,
+  .dark td {
+    color: hsl(var(--foreground)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+
+  /* Gradient animations for upload page */
+  @keyframes gradientShift {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  .gradient-bg {
+    background: linear-gradient(135deg, #0A0E1A 0%, #1E293B 25%, #0F172A 50%, #1E40AF 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+  }
+
+  /* Glassmorphism effect for cards */
+  .glass-card {
+    backdrop-filter: blur(10px);
+    background: rgba(17, 24, 39, 0.8);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   }
 
   .conveyor-belt {
@@ -173,17 +243,32 @@
       hsl(var(--conveyor-stripe)) 40px,
       hsl(var(--conveyor-stripe)) 42px
     );
+    /* Add moving belt stripes animation */
+    animation: beltMove 2s linear infinite;
   }
 
   .pcb-item {
-    @apply absolute top-1/2 transform -translate-y-1/2 w-16 h-12 bg-gradient-to-br from-green-700 to-green-900 rounded-sm shadow-lg;
-    animation: moveLeft 8s linear infinite;
+    @apply absolute top-1/2 transform -translate-y-1/2 w-16 h-12 rounded-sm shadow-lg border border-green-600/30;
+    background: linear-gradient(135deg, #065f46 0%, #047857 50%, #059669 100%);
+    animation: moveLeft 6s linear infinite;
     animation-fill-mode: forwards;
     will-change: transform;
+    /* Add subtle PCB circuit pattern */
+    background-image: 
+      radial-gradient(circle at 20% 30%, rgba(34, 197, 94, 0.3) 2px, transparent 2px),
+      radial-gradient(circle at 80% 70%, rgba(34, 197, 94, 0.3) 2px, transparent 2px),
+      radial-gradient(circle at 50% 50%, rgba(34, 197, 94, 0.2) 1px, transparent 1px);
+    background-size: 8px 8px, 8px 8px, 4px 4px;
   }
 
   .inspection-camera {
-    @apply absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full bg-metallic rounded-b-lg p-2 shadow-lg;
+    @apply absolute -top-12 left-1/2 transform -translate-x-1/2 bg-metallic rounded-lg p-3 shadow-lg;
+    background: linear-gradient(135deg, hsl(var(--metallic-dark)), hsl(var(--metallic)));
+    border: 1px solid hsl(var(--accent) / 0.3);
+    min-width: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .flash-pass {
@@ -201,12 +286,29 @@
 
 /* Animations */
 @layer utilities {
+  @keyframes beltMove {
+    0% {
+      background-position: 0px 0px;
+    }
+    100% {
+      background-position: 42px 0px;
+    }
+  }
+
   @keyframes moveLeft {
     0% {
       left: 100%;
+      opacity: 1;
+    }
+    15% {
+      opacity: 1;
+    }
+    85% {
+      opacity: 1;
     }
     100% {
       left: -80px;
+      opacity: 0;
     }
   }
 
@@ -223,6 +325,12 @@
   @keyframes flashRed {
     0%, 100% { box-shadow: none; }
     50% { box-shadow: var(--shadow-glow-error); }
+  }
+
+  @keyframes cameraShake {
+    0%, 100% { transform: translateX(-50%) rotate(0deg); }
+    25% { transform: translateX(-50%) rotate(0.5deg) translateY(1px); }
+    75% { transform: translateX(-50%) rotate(-0.5deg) translateY(-1px); }
   }
 
   @keyframes fadeInUp {
