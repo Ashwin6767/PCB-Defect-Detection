@@ -390,7 +390,7 @@ const InspectionPage = () => {
           </Button>
 
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-foreground">AOI Inspector Pro</h1>
+            <h1 className="text-4xl font-bold text-foreground">AOI Inspector</h1>
             <div className="flex items-center justify-center gap-4 mt-2">
               <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${systemStatus === 'ONLINE' ? 'bg-success/20 text-success' :
                 systemStatus === 'OFFLINE' ? 'bg-destructive/20 text-destructive' :
@@ -474,8 +474,9 @@ const InspectionPage = () => {
                 <Zap className="text-success" size={20} />
               </div>
               <div>
-                <div className="text-sm text-muted-foreground">Efficiency</div>
+                <div className="text-sm text-muted-foreground">Quality Efficiency</div>
                 <div className="text-lg font-bold text-foreground">{realTimeStats.efficiency}%</div>
+                <div className="text-xs text-muted-foreground">Pass Rate</div>
               </div>
             </div>
 
@@ -1033,7 +1034,7 @@ const InspectionPage = () => {
                       tickLine={false}
                       tick={{ fill: '#9CA3AF', fontSize: 11 }}
                       domain={[0, 100]}
-                      label={{ value: 'Efficiency %', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
+                      label={{ value: 'Quality Efficiency %', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
                     />
 
                     <Tooltip
@@ -1046,7 +1047,7 @@ const InspectionPage = () => {
                       }}
                       labelFormatter={(value) => `Item #${value}`}
                       formatter={(value: any, name: string) => {
-                        if (name === 'efficiency') return [`${value.toFixed(1)}%`, 'Efficiency'];
+                        if (name === 'efficiency') return [`${value.toFixed(1)}%`, 'Quality Efficiency'];
                         return [value, name.charAt(0).toUpperCase() + name.slice(1)];
                       }}
                     />
@@ -1090,7 +1091,7 @@ const InspectionPage = () => {
                       strokeWidth={3}
                       dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
                       activeDot={{ r: 6, stroke: '#3B82F6', strokeWidth: 2, fill: '#1E40AF' }}
-                      name="Efficiency"
+                      name="Quality Efficiency"
                       animationDuration={1000}
                     />
                   </ComposedChart>
@@ -1105,7 +1106,7 @@ const InspectionPage = () => {
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-bold text-success">{realTimeStats.efficiency}%</div>
-                  <div className="text-xs text-muted-foreground">Efficiency</div>
+                  <div className="text-xs text-muted-foreground">Quality Rate</div>
                 </div>
                 <div className="text-center">
                   <div className="text-lg font-bold text-accent">{realTimeStats.avgProcessingTime}s</div>
@@ -1424,7 +1425,7 @@ const InspectionPage = () => {
                     index: index + 1,
                     efficiency: results.slice(0, index + 1).length > 0 ?
                       (results.slice(0, index + 1).filter(r => r.status === 'PASS').length / results.slice(0, index + 1).length) * 100 : 0,
-                    throughput: Math.floor(Math.random() * 5) + 10 + (index * 0.2)
+                    throughput: Math.max(1, Math.floor((index + 1) / (2.5 * (index + 1) / 60))) // Real throughput calculation
                   }))}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
                     <XAxis
@@ -1452,7 +1453,7 @@ const InspectionPage = () => {
                       stroke="#10B981"
                       strokeWidth={2}
                       dot={{ fill: '#10B981', r: 3 }}
-                      name="Efficiency %"
+                      name="Quality %"
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -1496,10 +1497,10 @@ const InspectionPage = () => {
                   </div>
                 </div>
 
-                {/* Processing Efficiency */}
+                {/* Processing Progress */}
                 <div>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-muted-foreground">Processing Efficiency</span>
+                    <span className="text-sm text-muted-foreground">Processing Progress</span>
                     <span className="text-sm font-medium text-primary">
                       {isInspecting ? `${((results.length / expectedResultCount) * 100).toFixed(0)}%` : '100%'}
                     </span>
@@ -1680,7 +1681,7 @@ const InspectionPage = () => {
                         boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)'
                       }}
                       labelFormatter={(label) => `Time: ${label}`}
-                      formatter={(value: any, name: string, props: any) => {
+                      formatter={(value: unknown, name: string, props: unknown) => {
                         const data = props.payload;
                         if (name === 'defectRate') {
                           return [
