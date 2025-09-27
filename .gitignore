@@ -23,7 +23,6 @@ results/
 
 # Model weights (track explicitly if needed)
 *.pt
-!best.pt  # remove this line if you DO NOT want to track best.pt
 
 # Dataset raw images can be large; keep labels & yaml
 DATASET/train/images/
