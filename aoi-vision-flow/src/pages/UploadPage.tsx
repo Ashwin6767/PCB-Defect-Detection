@@ -10,9 +10,7 @@ import {
   Container,
   ToggleButton,
   ToggleButtonGroup,
-  Paper,
-  Chip,
-  Alert
+  Paper
 } from '@mui/material';
 import { 
   CloudUpload as Upload, 
@@ -35,7 +33,8 @@ const UploadPage = () => {
     sessionStorage.removeItem('uploadedFiles');
     sessionStorage.removeItem('inspectionResults');
     // Call backend to clear old files
-    fetch('http://localhost:5000/api/cleanup', { method: 'POST' }).catch(() => {
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+    fetch(`${API_BASE_URL}/api/cleanup`, { method: 'POST' }).catch(() => {
       // Ignore cleanup errors - backend might be offline
     });
   }, []);
@@ -117,14 +116,15 @@ const UploadPage = () => {
           description: "Uploading and processing video with YOLOv10 (sampling every 700ms)...",
         });
         
-        const response = await fetch('http://localhost:5000/api/inspect-video', {
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+        const response = await fetch(`${API_BASE_URL}/api/inspect-video`, {
           method: 'POST',
           body: formData
         });
         
         if (response.ok) {
           const data = await response.json();
-          console.log('Video processing result:', data);
+          if (import.meta.env.DEV) console.log('Video processing result:', data);
           
           if (data.error) {
             throw new Error(data.error);
@@ -143,7 +143,7 @@ const UploadPage = () => {
           navigate('/inspection');
         } else {
           const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-          console.error('Video processing failed:', errorData);
+          if (import.meta.env.DEV) console.error('Video processing failed:', errorData);
           throw new Error(errorData.error || 'Video processing failed');
         }
       } else {
@@ -152,7 +152,8 @@ const UploadPage = () => {
           formData.append('images', file);
         });
         
-        const response = await fetch('http://localhost:5000/api/inspect-batch', {
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+        const response = await fetch(`${API_BASE_URL}/api/inspect-batch`, {
           method: 'POST',
           body: formData
         });
@@ -175,7 +176,7 @@ const UploadPage = () => {
         }
       }
     } catch (error) {
-      console.error('Processing error:', error);
+      if (import.meta.env.DEV) console.error('Processing error:', error);
       toast({
         title: "Processing Failed",
         description: `Error: ${error.message}. Using demo mode instead.`,

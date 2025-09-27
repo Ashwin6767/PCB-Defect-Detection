@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+
+// Environment configuration
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 import {
   PieChart,
   Pie,
@@ -93,11 +96,111 @@ interface InspectionResult {
 
 // Move sample results outside component to prevent re-creation
 const sampleResults: InspectionResult[] = [
-  { pcbId: 'PCB-001', status: 'PASS', defectType: 'None' },
-  { pcbId: 'PCB-002', status: 'FAIL', defectType: 'Solder Bridge' },
-  { pcbId: 'PCB-003', status: 'FAIL', defectType: 'Missing Component' },
-  { pcbId: 'PCB-004', status: 'PASS', defectType: 'None' },
-  { pcbId: 'PCB-005', status: 'FAIL', defectType: 'Cold Joint' },
+  {
+    pcbId: 'PCB-001',
+    status: 'PASS',
+    defectType: 'None',
+    metrics: {
+      total_defects: 0,
+      total_frames: 1,
+      processed_frames: 1,
+      frames_with_defects: 0,
+      defect_density: 0,
+      duration_seconds: 2.1,
+      fps: 30,
+      processing_interval_ms: 100
+    }
+  },
+  {
+    pcbId: 'PCB-002',
+    status: 'FAIL',
+    defectType: 'Solder Bridge',
+    metrics: {
+      total_defects: 2,
+      total_frames: 1,
+      processed_frames: 1,
+      frames_with_defects: 1,
+      defect_density: 0.8,
+      duration_seconds: 2.3,
+      fps: 30,
+      processing_interval_ms: 100
+    },
+    defects_detected: [
+      {
+        type: 'solder_bridge',
+        confidence: 0.92,
+        bbox: [120, 80, 180, 140],
+        area: 3600
+      },
+      {
+        type: 'solder_bridge',
+        confidence: 0.87,
+        bbox: [200, 150, 240, 190],
+        area: 1600
+      }
+    ]
+  },
+  {
+    pcbId: 'PCB-003',
+    status: 'FAIL',
+    defectType: 'Missing Component',
+    metrics: {
+      total_defects: 1,
+      total_frames: 1,
+      processed_frames: 1,
+      frames_with_defects: 1,
+      defect_density: 0.5,
+      duration_seconds: 2.0,
+      fps: 30,
+      processing_interval_ms: 100
+    },
+    defects_detected: [
+      {
+        type: 'missing_component',
+        confidence: 0.95,
+        bbox: [300, 200, 350, 250],
+        area: 2500
+      }
+    ]
+  },
+  {
+    pcbId: 'PCB-004',
+    status: 'PASS',
+    defectType: 'None',
+    metrics: {
+      total_defects: 0,
+      total_frames: 1,
+      processed_frames: 1,
+      frames_with_defects: 0,
+      defect_density: 0,
+      duration_seconds: 1.9,
+      fps: 30,
+      processing_interval_ms: 100
+    }
+  },
+  {
+    pcbId: 'PCB-005',
+    status: 'FAIL',
+    defectType: 'Cold Joint',
+    metrics: {
+      total_defects: 1,
+      total_frames: 1,
+      processed_frames: 1,
+      frames_with_defects: 1,
+      defect_density: 0.3,
+      duration_seconds: 2.2,
+      fps: 30,
+      processing_interval_ms: 100
+    },
+    defects_detected: [
+      {
+        type: 'cold_joint',
+        confidence: 0.78,
+        bbox: [150, 100, 190, 140],
+        area: 1600
+      }
+    ]
+  },
 ];
 
 const InspectionPage = () => {
@@ -108,7 +211,6 @@ const InspectionPage = () => {
   const [selectedResult, setSelectedResult] = useState<InspectionResult | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [expectedResultCount, setExpectedResultCount] = useState(0);
-  const [animationKey, setAnimationKey] = useState(0);
   const [uploadMode, setUploadMode] = useState<'images' | 'video'>('images');
   const [inspectionSpeed, setInspectionSpeed] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
@@ -128,13 +230,32 @@ const InspectionPage = () => {
     timestamp: Date;
   }>>([]);
 
+  // Media error states
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [videoErrors, setVideoErrors] = useState<Set<string>>(new Set());
+
   const pcbImages = [pcbSample1, pcbSample2, pcbSample3];
+
+  // Helper functions
+  const getApiUrl = (endpoint: string) => `${API_BASE_URL}${endpoint}`;
+
+  const validateUploadMode = (mode: string | null): 'images' | 'video' => {
+    return mode === 'video' ? 'video' : 'images';
+  };
+
+  const handleImageError = (imageId: string) => {
+    setImageErrors(prev => new Set([...prev, imageId]));
+  };
+
+  const handleVideoError = (videoId: string) => {
+    setVideoErrors(prev => new Set([...prev, videoId]));
+  };
 
   useEffect(() => {
     // Check for YOLOv10 results first
     const storedResults = sessionStorage.getItem('inspectionResults');
     const uploadedFiles = sessionStorage.getItem('uploadedFiles');
-    const storedUploadMode = sessionStorage.getItem('uploadMode') as 'images' | 'video' || 'images';
+    const storedUploadMode = validateUploadMode(sessionStorage.getItem('uploadMode'));
 
     setUploadMode(storedUploadMode);
 
@@ -186,7 +307,7 @@ const InspectionPage = () => {
 
             return newResults;
           });
-          setAnimationKey(Date.now()); // Force counter update
+          // Counter will update automatically via results state change
         }, 500);
 
         currentIndex++;
@@ -206,13 +327,15 @@ const InspectionPage = () => {
       // Clear session storage when leaving inspection page
       sessionStorage.removeItem('uploadedFiles');
       sessionStorage.removeItem('inspectionResults');
+      sessionStorage.removeItem('uploadMode');
+      // Clear any ongoing intervals
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
     };
   }, []);
 
-  // Force component update when results change
-  useEffect(() => {
-    setAnimationKey(Date.now());
-  }, [results]);
+  // Results state changes will automatically trigger re-renders
 
   // Update real-time statistics
   useEffect(() => {
@@ -255,8 +378,9 @@ const InspectionPage = () => {
               // Clear all session data before going back
               sessionStorage.removeItem('uploadedFiles');
               sessionStorage.removeItem('inspectionResults');
+              sessionStorage.removeItem('uploadMode');
               // Call backend cleanup
-              fetch('http://localhost:5000/api/cleanup', { method: 'POST' }).catch(() => { });
+              fetch(getApiUrl('/api/cleanup'), { method: 'POST' }).catch(() => { });
               navigate('/');
             }}
             className="btn-secondary"
@@ -403,7 +527,7 @@ const InspectionPage = () => {
                   setResults([]);
                   setCurrentPcbIndex(0);
                   setIsInspecting(true);
-                  setAnimationKey(Date.now());
+                  // Component will re-render automatically
                 }}
                 className="btn-secondary"
               >
@@ -483,7 +607,7 @@ const InspectionPage = () => {
               {/* PCB Items Moving on Belt */}
               {isInspecting && pcbImages.map((image, index) => (
                 <div
-                  key={`pcb-${index}-${animationKey}`}
+                  key={`pcb-${index}-${results.length}`}
                   className={`pcb-item ${index === currentPcbIndex && results.length > 0
                     ? results[results.length - 1]?.status === 'PASS'
                       ? 'flash-pass'
@@ -617,7 +741,7 @@ const InspectionPage = () => {
                               size="sm"
                               onClick={() => {
                                 // Simulate flagging for review
-                                console.log('Flagged for review:', result.pcbId);
+                                if (import.meta.env.DEV) console.log('Flagged for review:', result.pcbId);
                               }}
                               className="text-warning hover:text-warning"
                             >
@@ -643,7 +767,7 @@ const InspectionPage = () => {
             </div>
 
             {/* Counter Section - Updates automatically */}
-            <div className="mt-6 p-4 bg-muted rounded-lg" key={`counter-${animationKey}`}>
+            <div className="mt-6 p-4 bg-muted rounded-lg">
               <div className="grid grid-cols-4 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold text-success">
@@ -730,676 +854,1104 @@ const InspectionPage = () => {
         )}
 
         {/* Analytics Dashboard Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
-          {/* Enhanced Quality Distribution Chart */}
-          <div className="industrial-card glass-card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <BarChart3 className="text-primary" size={20} />
-                Quality Distribution
-              </h3>
-              <div className="text-sm text-muted-foreground">
-                {results.length > 0 ? `${((results.filter(r => r.status === 'PASS').length / results.length) * 100).toFixed(1)}% Pass Rate` : 'No Data'}
-              </div>
-            </div>
-
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <defs>
-                    <linearGradient id="passGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0.2} />
-                    </linearGradient>
-                    <linearGradient id="failGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0.2} />
-                    </linearGradient>
-                    <linearGradient id="questionableGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.2} />
-                    </linearGradient>
-                  </defs>
-
-                  <Pie
-                    data={[
-                      {
-                        name: 'Pass',
-                        value: results.filter(r => r.status === 'PASS').length,
-                        percentage: results.length > 0 ? (results.filter(r => r.status === 'PASS').length / results.length) * 100 : 0,
-                        fill: '#10B981'
-                      },
-                      {
-                        name: 'Fail',
-                        value: results.filter(r => r.status === 'FAIL').length,
-                        percentage: results.length > 0 ? (results.filter(r => r.status === 'FAIL').length / results.length) * 100 : 0,
-                        fill: '#EF4444'
-                      },
-                      {
-                        name: 'Questionable',
-                        value: results.filter(r => r.status === 'QUESTIONABLE').length,
-                        percentage: results.length > 0 ? (results.filter(r => r.status === 'QUESTIONABLE').length / results.length) * 100 : 0,
-                        fill: '#F59E0B'
-                      }
-                    ].filter(item => item.value > 0)}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={120}
-                    paddingAngle={2}
-                    dataKey="value"
-                    animationBegin={0}
-                    animationDuration={1000}
-                  >
-                    {[
-                      { name: 'Pass', value: results.filter(r => r.status === 'PASS').length, fill: '#10B981' },
-                      { name: 'Fail', value: results.filter(r => r.status === 'FAIL').length, fill: '#EF4444' },
-                      { name: 'Questionable', value: results.filter(r => r.status === 'QUESTIONABLE').length, fill: '#F59E0B' }
-                    ].filter(item => item.value > 0).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.fill} strokeWidth={2} />
-                    ))}
-                  </Pie>
-
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#111827',
-                      border: '1px solid #374151',
-                      borderRadius: '8px',
-                      color: '#F9FAFB'
-                    }}
-                    formatter={(value: any, name: string) => [
-                      `${value} items (${results.length > 0 ? ((value / results.length) * 100).toFixed(1) : 0}%)`,
-                      name
-                    ]}
-                  />
-
-                  <Legend
-                    wrapperStyle={{ color: '#F9FAFB' }}
-                    iconType="circle"
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Quality metrics summary */}
-            <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-success">{results.filter(r => r.status === 'PASS').length}</div>
-                <div className="text-xs text-muted-foreground">Passed</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-destructive">{results.filter(r => r.status === 'FAIL').length}</div>
-                <div className="text-xs text-muted-foreground">Failed</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-warning">{results.filter(r => r.status === 'QUESTIONABLE').length}</div>
-                <div className="text-xs text-muted-foreground">Questionable</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Real-Time Processing Analytics */}
-          <div className="industrial-card glass-card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <Activity className="text-accent" size={20} />
-                Real-Time Analytics
-              </h3>
-              <div className="flex items-center gap-2 text-sm">
-                <div className={`w-2 h-2 rounded-full ${isInspecting ? 'bg-success animate-pulse' : 'bg-muted'}`}></div>
-                <span className="text-muted-foreground">
-                  {isInspecting ? 'Live Processing' : 'Processing Complete'}
-                </span>
-              </div>
-            </div>
-
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={results.map((result, index) => ({
-                  index: index + 1,
-                  timestamp: new Date(Date.now() - (results.length - index) * 2500).toLocaleTimeString(),
-                  cumulative: index + 1,
-                  pass: results.slice(0, index + 1).filter(r => r.status === 'PASS').length,
-                  fail: results.slice(0, index + 1).filter(r => r.status === 'FAIL').length,
-                  questionable: results.slice(0, index + 1).filter(r => r.status === 'QUESTIONABLE').length,
-                  efficiency: results.slice(0, index + 1).length > 0 ?
-                    (results.slice(0, index + 1).filter(r => r.status === 'PASS').length / results.slice(0, index + 1).length) * 100 : 0,
-                  throughput: Math.floor(Math.random() * 5) + 10 + (index * 0.5)
-                }))}>
-                  <defs>
-                    <linearGradient id="efficiencyGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.1} />
-                    </linearGradient>
-                    <linearGradient id="passAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.6} />
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0.1} />
-                    </linearGradient>
-                    <linearGradient id="failAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.6} />
-                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0.1} />
-                    </linearGradient>
-                  </defs>
-
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
-
-                  <XAxis
-                    dataKey="index"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                    label={{ value: 'Processing Sequence', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
-                  />
-
-                  <YAxis
-                    yAxisId="count"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                    label={{ value: 'Count', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
-                  />
-
-                  <YAxis
-                    yAxisId="efficiency"
-                    orientation="right"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                    domain={[0, 100]}
-                    label={{ value: 'Efficiency %', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
-                  />
-
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#111827',
-                      border: '1px solid #374151',
-                      borderRadius: '8px',
-                      color: '#F9FAFB',
-                      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)'
-                    }}
-                    labelFormatter={(value) => `Item #${value}`}
-                    formatter={(value: any, name: string) => {
-                      if (name === 'efficiency') return [`${value.toFixed(1)}%`, 'Efficiency'];
-                      return [value, name.charAt(0).toUpperCase() + name.slice(1)];
-                    }}
-                  />
-
-                  <Legend
-                    wrapperStyle={{ color: '#F9FAFB' }}
-                    iconType="line"
-                  />
-
-                  {/* Stacked areas for pass/fail counts */}
-                  <Area
-                    yAxisId="count"
-                    type="monotone"
-                    dataKey="pass"
-                    stackId="1"
-                    stroke="#10B981"
-                    strokeWidth={2}
-                    fill="url(#passAreaGradient)"
-                    name="Pass"
-                    animationDuration={800}
-                  />
-
-                  <Area
-                    yAxisId="count"
-                    type="monotone"
-                    dataKey="fail"
-                    stackId="1"
-                    stroke="#EF4444"
-                    strokeWidth={2}
-                    fill="url(#failAreaGradient)"
-                    name="Fail"
-                    animationDuration={800}
-                  />
-
-                  {/* Efficiency trend line */}
-                  <Line
-                    yAxisId="efficiency"
-                    type="monotone"
-                    dataKey="efficiency"
-                    stroke="#3B82F6"
-                    strokeWidth={3}
-                    dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
-                    activeDot={{ r: 6, stroke: '#3B82F6', strokeWidth: 2, fill: '#1E40AF' }}
-                    name="Efficiency"
-                    animationDuration={1000}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Real-time metrics */}
-            <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
-              <div className="text-center">
-                <div className="text-lg font-bold text-primary">{realTimeStats.throughput}</div>
-                <div className="text-xs text-muted-foreground">Items/min</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-success">{realTimeStats.efficiency}%</div>
-                <div className="text-xs text-muted-foreground">Efficiency</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-accent">{realTimeStats.avgProcessingTime}s</div>
-                <div className="text-xs text-muted-foreground">Avg Time</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-foreground">{results.length}</div>
-                <div className="text-xs text-muted-foreground">Processed</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Advanced Defect Analysis */}
-          <div className="industrial-card glass-card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <AlertTriangle className="text-warning" size={20} />
-                Defect Analysis
-              </h3>
-              <div className="text-sm text-muted-foreground">
-                {results.filter(r => r.status !== 'PASS').length} Total Defects
-              </div>
-            </div>
-
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={(() => {
-                  const defectCounts = results.reduce((acc, result) => {
-                    if (result.status !== 'PASS') {
-                      acc[result.defectType] = (acc[result.defectType] || 0) + 1;
-                    }
-                    return acc;
-                  }, {} as Record<string, number>);
-
-                  const defectData = Object.entries(defectCounts).map(([type, count]) => ({
-                    defectType: type,
-                    count,
-                    severity: type.includes('Bridge') || type.includes('Missing') ? 'Critical' :
-                      type.includes('Cold') || type.includes('Crack') ? 'Major' : 'Minor',
-                    percentage: results.length > 0 ? (count / results.filter(r => r.status !== 'PASS').length) * 100 : 0,
-                    trend: Math.floor(Math.random() * 20) - 10 // Simulated trend
-                  }));
-
-                  return defectData.sort((a, b) => b.count - a.count);
-                })()}>
-                  <defs>
-                    <linearGradient id="criticalGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0.3} />
-                    </linearGradient>
-                    <linearGradient id="majorGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.3} />
-                    </linearGradient>
-                    <linearGradient id="minorGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.3} />
-                    </linearGradient>
-                  </defs>
-
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
-
-                  <XAxis
-                    dataKey="defectType"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 10 }}
-                    angle={-45}
-                    textAnchor="end"
-                    height={100}
-                    interval={0}
-                  />
-
-                  <YAxis
-                    yAxisId="count"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                    label={{ value: 'Count', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
-                  />
-
-                  <YAxis
-                    yAxisId="percentage"
-                    orientation="right"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                    domain={[0, 100]}
-                    label={{ value: 'Percentage %', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
-                  />
-
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#111827',
-                      border: '1px solid #374151',
-                      borderRadius: '8px',
-                      color: '#F9FAFB',
-                      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)'
-                    }}
-                    formatter={(value: any, name: string, props: any) => {
-                      if (name === 'percentage') return [`${value.toFixed(1)}%`, 'Percentage'];
-                      if (name === 'count') return [value, `Count (${props.payload.severity})`];
-                      return [value, name];
-                    }}
-                  />
-
-                  <Legend
-                    wrapperStyle={{ color: '#F9FAFB' }}
-                  />
-
-                  {/* Defect count bars with severity-based coloring */}
-                  <Bar
-                    yAxisId="count"
-                    dataKey="count"
-                    name="Defect Count"
-                    radius={[6, 6, 0, 0]}
-                    animationDuration={1000}
-                    fill="#3B82F6"
-                  >
-                    {(() => {
-                      const defectCounts = results.reduce((acc, result) => {
-                        if (result.status !== 'PASS') {
-                          acc[result.defectType] = (acc[result.defectType] || 0) + 1;
-                        }
-                        return acc;
-                      }, {} as Record<string, number>);
-
-                      return Object.entries(defectCounts).map(([type, count], index) => {
-                        const severity = type.includes('Bridge') || type.includes('Missing') ? 'Critical' :
-                          type.includes('Cold') || type.includes('Crack') ? 'Major' : 'Minor';
-                        const fill = severity === 'Critical' ? 'url(#criticalGradient)' :
-                          severity === 'Major' ? 'url(#majorGradient)' : 'url(#minorGradient)';
-                        return <Cell key={`cell-${index}`} fill={fill} />;
-                      });
-                    })()}
-                  </Bar>
-
-                  {/* Percentage line */}
-                  <Line
-                    yAxisId="percentage"
-                    type="monotone"
-                    dataKey="percentage"
-                    stroke="#10B981"
-                    strokeWidth={3}
-                    dot={{ fill: '#10B981', strokeWidth: 2, r: 5 }}
-                    activeDot={{ r: 7, stroke: '#10B981', strokeWidth: 2, fill: '#059669' }}
-                    name="Percentage"
-                    animationDuration={1200}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Defect severity summary */}
-            <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
-              <div className="text-center p-3 bg-destructive/10 rounded-lg border border-destructive/20">
-                <div className="text-lg font-bold text-destructive">
-                  {results.filter(r => r.defectType.includes('Bridge') || r.defectType.includes('Missing')).length}
+        {results.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
+            {/* Enhanced Quality Distribution Chart */}
+            <div className="industrial-card glass-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                  <BarChart3 className="text-primary" size={20} />
+                  Quality Distribution
+                </h3>
+                <div className="text-sm text-muted-foreground">
+                  {results.length > 0 ? `${((results.filter(r => r.status === 'PASS').length / results.length) * 100).toFixed(1)}% Pass Rate` : 'No Data'}
                 </div>
-                <div className="text-xs text-destructive">Critical</div>
               </div>
-              <div className="text-center p-3 bg-warning/10 rounded-lg border border-warning/20">
-                <div className="text-lg font-bold text-warning">
-                  {results.filter(r => r.defectType.includes('Cold') || r.defectType.includes('Crack')).length}
-                </div>
-                <div className="text-xs text-warning">Major</div>
+
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <defs>
+                      <linearGradient id="passGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.2} />
+                      </linearGradient>
+                      <linearGradient id="failGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0.2} />
+                      </linearGradient>
+                      <linearGradient id="questionableGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.2} />
+                      </linearGradient>
+                    </defs>
+
+                    <Pie
+                      data={(() => {
+                        if (results.length === 0) return [];
+
+                        const passCount = results.filter(r => r.status === 'PASS').length;
+                        const failCount = results.filter(r => r.status === 'FAIL').length;
+                        const questionableCount = results.filter(r => r.status === 'QUESTIONABLE').length;
+
+                        return [
+                          {
+                            name: 'Pass',
+                            value: passCount,
+                            percentage: (passCount / results.length) * 100,
+                            fill: '#10B981'
+                          },
+                          {
+                            name: 'Fail',
+                            value: failCount,
+                            percentage: (failCount / results.length) * 100,
+                            fill: '#EF4444'
+                          },
+                          {
+                            name: 'Questionable',
+                            value: questionableCount,
+                            percentage: (questionableCount / results.length) * 100,
+                            fill: '#F59E0B'
+                          }
+                        ].filter(item => item.value > 0);
+                      })()}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={120}
+                      paddingAngle={2}
+                      dataKey="value"
+                      animationBegin={0}
+                      animationDuration={1000}
+                    >
+                      {/* Cells are automatically generated from data */}
+                    </Pie>
+
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#111827',
+                        border: '1px solid #374151',
+                        borderRadius: '8px',
+                        color: '#F9FAFB'
+                      }}
+                      formatter={(value: any, name: string) => [
+                        `${value} items (${results.length > 0 ? ((value / results.length) * 100).toFixed(1) : 0}%)`,
+                        name
+                      ]}
+                    />
+
+                    <Legend
+                      wrapperStyle={{ color: '#F9FAFB' }}
+                      iconType="circle"
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              <div className="text-center p-3 bg-primary/10 rounded-lg border border-primary/20">
-                <div className="text-lg font-bold text-primary">
-                  {results.filter(r => r.status !== 'PASS' && !r.defectType.includes('Bridge') && !r.defectType.includes('Missing') && !r.defectType.includes('Cold') && !r.defectType.includes('Crack')).length}
+
+              {/* Quality metrics summary */}
+              <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-success">{results.filter(r => r.status === 'PASS').length}</div>
+                  <div className="text-xs text-muted-foreground">Passed</div>
                 </div>
-                <div className="text-xs text-primary">Minor</div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-destructive">{results.filter(r => r.status === 'FAIL').length}</div>
+                  <div className="text-xs text-muted-foreground">Failed</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-warning">{results.filter(r => r.status === 'QUESTIONABLE').length}</div>
+                  <div className="text-xs text-muted-foreground">Questionable</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Performance Correlation Matrix */}
-          <div className="industrial-card glass-card p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
-                <Zap className="text-success" size={20} />
-                Performance Matrix
-              </h3>
-              <div className="text-sm text-muted-foreground">
-                Processing vs Quality
+            {/* Real-Time Processing Analytics */}
+            <div className="industrial-card glass-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                  <Activity className="text-accent" size={20} />
+                  Real-Time Analytics
+                </h3>
+                <div className="flex items-center gap-2 text-sm">
+                  <div className={`w-2 h-2 rounded-full ${isInspecting ? 'bg-success animate-pulse' : 'bg-muted'}`}></div>
+                  <span className="text-muted-foreground">
+                    {isInspecting ? 'Live Processing' : 'Processing Complete'}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart
-                  data={results.map((result, index) => ({
-                    processingTime: 2.1 + Math.random() * 1.5,
-                    qualityScore: result.status === 'PASS' ? 85 + Math.random() * 15 :
-                      result.status === 'QUESTIONABLE' ? 60 + Math.random() * 25 :
-                        20 + Math.random() * 40,
-                    defectType: result.defectType,
-                    status: result.status,
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={results.map((result, index) => ({
                     index: index + 1,
-                    fill: result.status === 'PASS' ? '#10B981' :
-                      result.status === 'QUESTIONABLE' ? '#F59E0B' : '#EF4444'
-                  }))}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
+                    timestamp: new Date(Date.now() - (results.length - index) * 2500).toLocaleTimeString(),
+                    cumulative: index + 1,
+                    pass: results.slice(0, index + 1).filter(r => r.status === 'PASS').length,
+                    fail: results.slice(0, index + 1).filter(r => r.status === 'FAIL').length,
+                    questionable: results.slice(0, index + 1).filter(r => r.status === 'QUESTIONABLE').length,
+                    efficiency: results.slice(0, index + 1).length > 0 ?
+                      (results.slice(0, index + 1).filter(r => r.status === 'PASS').length / results.slice(0, index + 1).length) * 100 : 0,
+                    throughput: Math.max(1, Math.floor((index + 1) / ((Date.now() - (Date.now() - results.length * 2500)) / 60000))) // Items per minute
+                  }))}>
+                    <defs>
+                      <linearGradient id="efficiencyGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.1} />
+                      </linearGradient>
+                      <linearGradient id="passAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.6} />
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.1} />
+                      </linearGradient>
+                      <linearGradient id="failAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.6} />
+                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0.1} />
+                      </linearGradient>
+                    </defs>
 
-                  <XAxis
-                    type="number"
-                    dataKey="processingTime"
-                    name="Processing Time"
-                    unit="s"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                    domain={['dataMin - 0.1', 'dataMax + 0.1']}
-                    label={{ value: 'Processing Time (seconds)', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
-                  />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
 
-                  <YAxis
-                    type="number"
-                    dataKey="qualityScore"
-                    name="Quality Score"
-                    unit="%"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                    domain={[0, 100]}
-                    label={{ value: 'Quality Score (%)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
-                  />
+                    <XAxis
+                      dataKey="index"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                      label={{ value: 'Processing Sequence', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
+                    />
 
-                  <Tooltip
-                    cursor={{ strokeDasharray: '3 3' }}
-                    contentStyle={{
-                      backgroundColor: '#111827',
-                      border: '1px solid #374151',
-                      borderRadius: '8px',
-                      color: '#F9FAFB',
-                      boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)'
-                    }}
-                    formatter={(value: any, name: string, props: unknown) => {
-                      if (name === 'processingTime') return [`${value.toFixed(2)}s`, 'Processing Time'];
-                      if (name === 'qualityScore') return [`${value.toFixed(1)}%`, 'Quality Score'];
-                      return [value, name];
-                    }}
-                    labelFormatter={(label, payload) => {
-                      if (payload && payload[0]) {
-                        return `Item #${payload[0].payload.index} - ${payload[0].payload.status}`;
+                    <YAxis
+                      yAxisId="count"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                      label={{ value: 'Count', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
+                    />
+
+                    <YAxis
+                      yAxisId="efficiency"
+                      orientation="right"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                      domain={[0, 100]}
+                      label={{ value: 'Efficiency %', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
+                    />
+
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#111827',
+                        border: '1px solid #374151',
+                        borderRadius: '8px',
+                        color: '#F9FAFB',
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)'
+                      }}
+                      labelFormatter={(value) => `Item #${value}`}
+                      formatter={(value: any, name: string) => {
+                        if (name === 'efficiency') return [`${value.toFixed(1)}%`, 'Efficiency'];
+                        return [value, name.charAt(0).toUpperCase() + name.slice(1)];
+                      }}
+                    />
+
+                    <Legend
+                      wrapperStyle={{ color: '#F9FAFB' }}
+                      iconType="line"
+                    />
+
+                    {/* Stacked areas for pass/fail counts */}
+                    <Area
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="pass"
+                      stackId="1"
+                      stroke="#10B981"
+                      strokeWidth={2}
+                      fill="url(#passAreaGradient)"
+                      name="Pass"
+                      animationDuration={800}
+                    />
+
+                    <Area
+                      yAxisId="count"
+                      type="monotone"
+                      dataKey="fail"
+                      stackId="1"
+                      stroke="#EF4444"
+                      strokeWidth={2}
+                      fill="url(#failAreaGradient)"
+                      name="Fail"
+                      animationDuration={800}
+                    />
+
+                    {/* Efficiency trend line */}
+                    <Line
+                      yAxisId="efficiency"
+                      type="monotone"
+                      dataKey="efficiency"
+                      stroke="#3B82F6"
+                      strokeWidth={3}
+                      dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, stroke: '#3B82F6', strokeWidth: 2, fill: '#1E40AF' }}
+                      name="Efficiency"
+                      animationDuration={1000}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Real-time metrics */}
+              <div className="grid grid-cols-4 gap-4 mt-4 pt-4 border-t border-border">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-primary">{realTimeStats.throughput}</div>
+                  <div className="text-xs text-muted-foreground">Items/min</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-success">{realTimeStats.efficiency}%</div>
+                  <div className="text-xs text-muted-foreground">Efficiency</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-accent">{realTimeStats.avgProcessingTime}s</div>
+                  <div className="text-xs text-muted-foreground">Avg Time</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-bold text-foreground">{results.length}</div>
+                  <div className="text-xs text-muted-foreground">Processed</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Advanced Defect Analysis */}
+            <div className="industrial-card glass-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                  <AlertTriangle className="text-warning" size={20} />
+                  Defect Analysis
+                </h3>
+                <div className="text-sm text-muted-foreground">
+                  {results.filter(r => r.status !== 'PASS').length} Total Defects
+                </div>
+              </div>
+
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={(() => {
+                    const defectCounts = results.reduce((acc, result) => {
+                      if (result.status !== 'PASS') {
+                        acc[result.defectType] = (acc[result.defectType] || 0) + 1;
                       }
-                      return label;
-                    }}
-                  />
+                      return acc;
+                    }, {} as Record<string, number>);
 
-                  <Scatter
-                    dataKey="qualityScore"
-                    fill="#3B82F6"
-                    fillOpacity={0.7}
+                    const defectData = Object.entries(defectCounts).map(([type, count]) => ({
+                      defectType: type,
+                      count,
+                      severity: type.includes('Bridge') || type.includes('Missing') ? 'Critical' :
+                        type.includes('Cold') || type.includes('Crack') ? 'Major' : 'Minor',
+                      percentage: results.length > 0 ? (count / results.length) * 100 : 0, // Percentage of total results
+                      trend: 0 // Real trend calculation would require historical data
+                    }));
+
+                    return defectData.sort((a, b) => b.count - a.count);
+                  })()}>
+                    <defs>
+                      <linearGradient id="criticalGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0.3} />
+                      </linearGradient>
+                      <linearGradient id="majorGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.3} />
+                      </linearGradient>
+                      <linearGradient id="minorGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.3} />
+                      </linearGradient>
+                    </defs>
+
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
+
+                    <XAxis
+                      dataKey="defectType"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                      interval={0}
+                    />
+
+                    <YAxis
+                      yAxisId="count"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                      label={{ value: 'Count', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
+                    />
+
+                    <YAxis
+                      yAxisId="percentage"
+                      orientation="right"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                      domain={[0, 100]}
+                      label={{ value: 'Percentage %', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
+                    />
+
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#111827',
+                        border: '1px solid #374151',
+                        borderRadius: '8px',
+                        color: '#F9FAFB',
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)'
+                      }}
+                      formatter={(value: any, name: string, props: unknown) => {
+                        if (name === 'percentage') return [`${value.toFixed(1)}%`, 'Percentage'];
+                        if (name === 'count') return [value, `Count (${props.payload.severity})`];
+                        return [value, name];
+                      }}
+                    />
+
+                    <Legend
+                      wrapperStyle={{ color: '#F9FAFB' }}
+                    />
+
+                    {/* Defect count bars with severity-based coloring */}
+                    <Bar
+                      yAxisId="count"
+                      dataKey="count"
+                      name="Defect Count"
+                      radius={[6, 6, 0, 0]}
+                      animationDuration={1000}
+                      fill="#3B82F6"
+                    >
+                      {(() => {
+                        const defectCounts = results.reduce((acc, result) => {
+                          if (result.status !== 'PASS') {
+                            acc[result.defectType] = (acc[result.defectType] || 0) + 1;
+                          }
+                          return acc;
+                        }, {} as Record<string, number>);
+
+                        return Object.entries(defectCounts).map(([type, count], index) => {
+                          const severity = type.includes('Bridge') || type.includes('Missing') ? 'Critical' :
+                            type.includes('Cold') || type.includes('Crack') ? 'Major' : 'Minor';
+                          const fill = severity === 'Critical' ? 'url(#criticalGradient)' :
+                            severity === 'Major' ? 'url(#majorGradient)' : 'url(#minorGradient)';
+                          return <Cell key={`cell-${index}`} fill={fill} />;
+                        });
+                      })()}
+                    </Bar>
+
+                    {/* Percentage line */}
+                    <Line
+                      yAxisId="percentage"
+                      type="monotone"
+                      dataKey="percentage"
+                      stroke="#10B981"
+                      strokeWidth={3}
+                      dot={{ fill: '#10B981', strokeWidth: 2, r: 5 }}
+                      activeDot={{ r: 7, stroke: '#10B981', strokeWidth: 2, fill: '#059669' }}
+                      name="Percentage"
+                      animationDuration={1200}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Defect severity summary */}
+              <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border">
+                <div className="text-center p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                  <div className="text-lg font-bold text-destructive">
+                    {results.filter(r => r.defectType.includes('Bridge') || r.defectType.includes('Missing')).length}
+                  </div>
+                  <div className="text-xs text-destructive">Critical</div>
+                </div>
+                <div className="text-center p-3 bg-warning/10 rounded-lg border border-warning/20">
+                  <div className="text-lg font-bold text-warning">
+                    {results.filter(r => r.defectType.includes('Cold') || r.defectType.includes('Crack')).length}
+                  </div>
+                  <div className="text-xs text-warning">Major</div>
+                </div>
+                <div className="text-center p-3 bg-primary/10 rounded-lg border border-primary/20">
+                  <div className="text-lg font-bold text-primary">
+                    {results.filter(r => r.status !== 'PASS' && !r.defectType.includes('Bridge') && !r.defectType.includes('Missing') && !r.defectType.includes('Cold') && !r.defectType.includes('Crack')).length}
+                  </div>
+                  <div className="text-xs text-primary">Minor</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Performance Correlation Matrix */}
+            <div className="industrial-card glass-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                  <Zap className="text-success" size={20} />
+                  Performance Matrix
+                </h3>
+                <div className="text-sm text-muted-foreground">
+                  Processing vs Quality
+                </div>
+              </div>
+
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart
+                    data={results.map((result, index) => ({
+                      processingTime: result.metrics?.duration_seconds || (uploadMode === 'video' ? 5.0 : 2.1),
+                      qualityScore: result.status === 'PASS' ? 95 :
+                        result.status === 'QUESTIONABLE' ? 75 :
+                          result.metrics?.total_defects ? Math.max(20, 80 - (result.metrics.total_defects * 15)) : 30,
+                      defectType: result.defectType,
+                      status: result.status,
+                      index: index + 1,
+                      fill: result.status === 'PASS' ? '#10B981' :
+                        result.status === 'QUESTIONABLE' ? '#F59E0B' : '#EF4444'
+                    }))}
                   >
-                    {results.map((result, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={result.status === 'PASS' ? '#10B981' :
-                          result.status === 'QUESTIONABLE' ? '#F59E0B' : '#EF4444'}
-                      />
-                    ))}
-                  </Scatter>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
 
-                  <Legend
-                    wrapperStyle={{ color: '#F9FAFB' }}
-                    iconType="circle"
-                    payload={[
-                      { value: 'Pass', type: 'circle', color: '#10B981' },
-                      { value: 'Questionable', type: 'circle', color: '#F59E0B' },
-                      { value: 'Fail', type: 'circle', color: '#EF4444' }
-                    ]}
-                  />
-                </ScatterChart>
-              </ResponsiveContainer>
+                    <XAxis
+                      type="number"
+                      dataKey="processingTime"
+                      name="Processing Time"
+                      unit="s"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                      domain={['dataMin - 0.1', 'dataMax + 0.1']}
+                      label={{ value: 'Processing Time (seconds)', position: 'insideBottom', offset: -5, style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
+                    />
+
+                    <YAxis
+                      type="number"
+                      dataKey="qualityScore"
+                      name="Quality Score"
+                      unit="%"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                      domain={[0, 100]}
+                      label={{ value: 'Quality Score (%)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fill: '#9CA3AF' } }}
+                    />
+
+                    <Tooltip
+                      cursor={{ strokeDasharray: '3 3' }}
+                      contentStyle={{
+                        backgroundColor: '#111827',
+                        border: '1px solid #374151',
+                        borderRadius: '8px',
+                        color: '#F9FAFB',
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)'
+                      }}
+                      formatter={(value: unknown, name: string, props: unknown) => {
+                        if (name === 'processingTime') return [`${value.toFixed(2)}s`, 'Processing Time'];
+                        if (name === 'qualityScore') return [`${value.toFixed(1)}%`, 'Quality Score'];
+                        return [value, name];
+                      }}
+                      labelFormatter={(label, payload) => {
+                        if (payload && payload[0]) {
+                          return `Item #${payload[0].payload.index} - ${payload[0].payload.status}`;
+                        }
+                        return label;
+                      }}
+                    />
+
+                    <Scatter
+                      dataKey="qualityScore"
+                      fill="#3B82F6"
+                      fillOpacity={0.7}
+                    >
+                      {results.map((result, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={result.status === 'PASS' ? '#10B981' :
+                            result.status === 'QUESTIONABLE' ? '#F59E0B' : '#EF4444'}
+                        />
+                      ))}
+                    </Scatter>
+
+                    <Legend
+                      wrapperStyle={{ color: '#F9FAFB' }}
+                      iconType="circle"
+                      payload={[
+                        { value: 'Pass', type: 'circle', color: '#10B981' },
+                        { value: 'Questionable', type: 'circle', color: '#F59E0B' },
+                        { value: 'Fail', type: 'circle', color: '#EF4444' }
+                      ]}
+                    />
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Performance insights */}
+              <div className="mt-4 pt-4 border-t border-border">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-2 bg-success/10 rounded-lg">
+                    <div className="text-sm font-bold text-success">Optimal Zone</div>
+                    <div className="text-xs text-muted-foreground">Fast & High Quality</div>
+                  </div>
+                  <div className="text-center p-2 bg-warning/10 rounded-lg">
+                    <div className="text-sm font-bold text-warning">Review Zone</div>
+                    <div className="text-xs text-muted-foreground">Needs Optimization</div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Performance insights */}
-            <div className="mt-4 pt-4 border-t border-border">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="text-center p-2 bg-success/10 rounded-lg">
-                  <div className="text-sm font-bold text-success">Optimal Zone</div>
-                  <div className="text-xs text-muted-foreground">Fast & High Quality</div>
+            {/* Live Performance Monitor */}
+            <div className="industrial-card glass-card p-6">
+              <h3 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Activity className="text-primary" size={20} />
+                Live Performance Monitor
+              </h3>
+
+              {/* Real-time processing indicator */}
+              <div className="mb-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-primary">Processing Status</span>
+                  <div className={`w-3 h-3 rounded-full ${isInspecting ? 'bg-success animate-pulse' : 'bg-muted'}`}></div>
                 </div>
-                <div className="text-center p-2 bg-warning/10 rounded-lg">
-                  <div className="text-sm font-bold text-warning">Review Zone</div>
-                  <div className="text-xs text-muted-foreground">Needs Optimization</div>
+                <div className="text-xs text-primary/80">
+                  {isInspecting ? `Processing at ${inspectionSpeed}x speed` : 'System idle'}
+                </div>
+              </div>
+
+              {/* Simple Performance Chart */}
+              <div className="h-48 mb-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={results.map((result, index) => ({
+                    index: index + 1,
+                    efficiency: results.slice(0, index + 1).length > 0 ?
+                      (results.slice(0, index + 1).filter(r => r.status === 'PASS').length / results.slice(0, index + 1).length) * 100 : 0,
+                    throughput: Math.floor(Math.random() * 5) + 10 + (index * 0.2)
+                  }))}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
+                    <XAxis
+                      dataKey="index"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#111827',
+                        border: '1px solid #374151',
+                        borderRadius: '8px',
+                        color: '#F9FAFB'
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="efficiency"
+                      stroke="#10B981"
+                      strokeWidth={2}
+                      dot={{ fill: '#10B981', r: 3 }}
+                      name="Efficiency %"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Quality Metrics */}
+              <div className="space-y-4">
+                {/* Pass Rate */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-muted-foreground">Pass Rate</span>
+                    <span className="text-sm font-medium text-success">
+                      {results.length > 0 ? ((results.filter(r => r.status === 'PASS').length / results.length) * 100).toFixed(1) : 0}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div
+                      className="bg-success h-2 rounded-full transition-all duration-500"
+                      style={{
+                        width: results.length > 0 ? `${(results.filter(r => r.status === 'PASS').length / results.length) * 100}%` : '0%'
+                      }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Defect Rate */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-muted-foreground">Defect Rate</span>
+                    <span className="text-sm font-medium text-destructive">
+                      {results.length > 0 ? ((results.filter(r => r.status === 'FAIL').length / results.length) * 100).toFixed(1) : 0}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div
+                      className="bg-destructive h-2 rounded-full transition-all duration-500"
+                      style={{
+                        width: results.length > 0 ? `${(results.filter(r => r.status === 'FAIL').length / results.length) * 100}%` : '0%'
+                      }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Processing Efficiency */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-muted-foreground">Processing Efficiency</span>
+                    <span className="text-sm font-medium text-primary">
+                      {isInspecting ? `${((results.length / expectedResultCount) * 100).toFixed(0)}%` : '100%'}
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div
+                      className="bg-primary h-2 rounded-full transition-all duration-500"
+                      style={{
+                        width: isInspecting ? `${(results.length / expectedResultCount) * 100}%` : '100%'
+                      }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* YOLOv10 Model Accuracy */}
+                <div className="mt-6 p-3 bg-primary/10 rounded-lg border border-primary/20">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-primary">YOLOv10 Model Accuracy</span>
+                    <span className="text-lg font-bold text-primary">94.97%</span>
+                  </div>
+                  <div className="text-xs text-primary/80 mt-1">
+                    Trained on 8 PCB defect types
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-
-          {/* Live Performance Monitor */}
-          <div className="industrial-card glass-card p-6">
-            <h3 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-              <Activity className="text-primary" size={20} />
-              Live Performance Monitor
-            </h3>
-
-            {/* Real-time processing indicator */}
-            <div className="mb-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-primary">Processing Status</span>
-                <div className={`w-3 h-3 rounded-full ${isInspecting ? 'bg-success animate-pulse' : 'bg-muted'}`}></div>
-              </div>
-              <div className="text-xs text-primary/80">
-                {isInspecting ? `Processing at ${inspectionSpeed}x speed` : 'System idle'}
-              </div>
-            </div>
-
-            {/* Simple Performance Chart */}
-            <div className="h-48 mb-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={results.map((result, index) => ({
-                  index: index + 1,
-                  efficiency: results.slice(0, index + 1).length > 0 ?
-                    (results.slice(0, index + 1).filter(r => r.status === 'PASS').length / results.slice(0, index + 1).length) * 100 : 0,
-                  throughput: Math.floor(Math.random() * 5) + 10 + (index * 0.2)
-                }))}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
-                  <XAxis
-                    dataKey="index"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 10 }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#9CA3AF', fontSize: 10 }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#111827',
-                      border: '1px solid #374151',
-                      borderRadius: '8px',
-                      color: '#F9FAFB'
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="efficiency"
-                    stroke="#10B981"
-                    strokeWidth={2}
-                    dot={{ fill: '#10B981', r: 3 }}
-                    name="Efficiency %"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Quality Metrics */}
-            <div className="space-y-4">
-              {/* Pass Rate */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-muted-foreground">Pass Rate</span>
-                  <span className="text-sm font-medium text-success">
-                    {results.length > 0 ? ((results.filter(r => r.status === 'PASS').length / results.length) * 100).toFixed(1) : 0}%
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div
-                    className="bg-success h-2 rounded-full transition-all duration-500"
-                    style={{
-                      width: results.length > 0 ? `${(results.filter(r => r.status === 'PASS').length / results.length) * 100}%` : '0%'
-                    }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Defect Rate */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-muted-foreground">Defect Rate</span>
-                  <span className="text-sm font-medium text-destructive">
-                    {results.length > 0 ? ((results.filter(r => r.status === 'FAIL').length / results.length) * 100).toFixed(1) : 0}%
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div
-                    className="bg-destructive h-2 rounded-full transition-all duration-500"
-                    style={{
-                      width: results.length > 0 ? `${(results.filter(r => r.status === 'FAIL').length / results.length) * 100}%` : '0%'
-                    }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* Processing Efficiency */}
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-muted-foreground">Processing Efficiency</span>
-                  <span className="text-sm font-medium text-primary">
-                    {isInspecting ? `${((results.length / expectedResultCount) * 100).toFixed(0)}%` : '100%'}
-                  </span>
-                </div>
-                <div className="w-full bg-muted rounded-full h-2">
-                  <div
-                    className="bg-primary h-2 rounded-full transition-all duration-500"
-                    style={{
-                      width: isInspecting ? `${(results.length / expectedResultCount) * 100}%` : '100%'
-                    }}
-                  ></div>
-                </div>
-              </div>
-
-              {/* YOLOv10 Model Accuracy */}
-              <div className="mt-6 p-3 bg-primary/10 rounded-lg border border-primary/20">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-primary">YOLOv10 Model Accuracy</span>
-                  <span className="text-lg font-bold text-primary">94.97%</span>
-                </div>
-                <div className="text-xs text-primary/80 mt-1">
-                  Trained on 8 PCB defect types
-                </div>
-              </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="text-muted-foreground">
+              <BarChart3 size={48} className="mx-auto mb-4 opacity-50" />
+              <p>No inspection data available for analytics</p>
+              <p className="text-sm">Charts will appear once inspection begins</p>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Statistical Process Control Chart - CRITICAL for Manufacturing */}
+        {results.length > 0 && (
+          <div className="mt-8">
+            <div className="industrial-card glass-card p-6 animate-fade-in-up">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                  <Activity className="text-destructive" size={20} />
+                  Statistical Process Control (SPC)
+                </h3>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-0.5 bg-destructive"></div>
+                    <span className="text-muted-foreground">UCL (Upper Control Limit)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-0.5 bg-warning"></div>
+                    <span className="text-muted-foreground">Center Line</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-0.5 bg-destructive"></div>
+                    <span className="text-muted-foreground">LCL (Lower Control Limit)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={(() => {
+                    // Generate time-series data with proper SPC calculations
+                    const timeSeriesData = [];
+                    const batchSize = Math.max(1, Math.floor(results.length / 10)); // Group into time periods
+
+                    for (let i = 0; i < results.length; i += batchSize) {
+                      const batch = results.slice(i, i + batchSize);
+                      const defectRate = (batch.filter(r => r.status === 'FAIL').length / batch.length) * 100;
+                      const timestamp = new Date(Date.now() - (results.length - i) * 150000); // 2.5 min intervals
+
+                      timeSeriesData.push({
+                        timePoint: i / batchSize + 1,
+                        timestamp: timestamp.toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false
+                        }),
+                        defectRate: defectRate,
+                        sampleSize: batch.length,
+                        defectCount: batch.filter(r => r.status === 'FAIL').length,
+                        // SPC status indicators
+                        isOutOfControl: false, // Will be calculated below
+                        trend: 'stable'
+                      });
+                    }
+
+                    // Calculate SPC control limits (using standard 3-sigma limits)
+                    const overallDefectRate = (results.filter(r => r.status === 'FAIL').length / results.length) * 100;
+                    const avgSampleSize = results.length / timeSeriesData.length;
+
+                    // Standard deviation for defect rate (using binomial distribution)
+                    const p = overallDefectRate / 100;
+                    const standardError = Math.sqrt((p * (1 - p)) / avgSampleSize) * 100;
+
+                    const centerLine = overallDefectRate;
+                    const upperControlLimit = Math.min(100, centerLine + (3 * standardError));
+                    const lowerControlLimit = Math.max(0, centerLine - (3 * standardError));
+
+                    // Mark out-of-control points
+                    timeSeriesData.forEach((point, index) => {
+                      point.isOutOfControl = point.defectRate > upperControlLimit || point.defectRate < lowerControlLimit;
+
+                      // Trend detection (7 consecutive points above/below center line)
+                      if (index >= 6) {
+                        const last7 = timeSeriesData.slice(index - 6, index + 1);
+                        const allAbove = last7.every(p => p.defectRate > centerLine);
+                        const allBelow = last7.every(p => p.defectRate < centerLine);
+
+                        if (allAbove) point.trend = 'increasing';
+                        else if (allBelow) point.trend = 'decreasing';
+                      }
+                    });
+
+                    // Add control limit lines to data
+                    return timeSeriesData.map(point => ({
+                      ...point,
+                      centerLine,
+                      upperControlLimit,
+                      lowerControlLimit,
+                      // Warning limits (2-sigma)
+                      upperWarningLimit: Math.min(100, centerLine + (2 * standardError)),
+                      lowerWarningLimit: Math.max(0, centerLine - (2 * standardError))
+                    }));
+                  })()}>
+
+                    <defs>
+                      <linearGradient id="defectRateGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0.1} />
+                      </linearGradient>
+                      <linearGradient id="controlZoneGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.3} />
+
+                    <XAxis
+                      dataKey="timestamp"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 10 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      label={{
+                        value: 'Time Period',
+                        position: 'insideBottom',
+                        offset: -10,
+                        style: { textAnchor: 'middle', fill: '#9CA3AF' }
+                      }}
+                    />
+
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                      domain={[0, 'dataMax + 5']}
+                      label={{
+                        value: 'Defect Rate (%)',
+                        angle: -90,
+                        position: 'insideLeft',
+                        style: { textAnchor: 'middle', fill: '#9CA3AF' }
+                      }}
+                    />
+
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#111827',
+                        border: '1px solid #374151',
+                        borderRadius: '8px',
+                        color: '#F9FAFB',
+                        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)'
+                      }}
+                      labelFormatter={(label) => `Time: ${label}`}
+                      formatter={(value: any, name: string, props: any) => {
+                        const data = props.payload;
+                        if (name === 'defectRate') {
+                          return [
+                            <div key="defect-info">
+                              <div>{`${value.toFixed(2)}% Defect Rate`}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {`${data.defectCount}/${data.sampleSize} failed`}
+                              </div>
+                              {data.isOutOfControl && (
+                                <div className="text-xs text-destructive font-bold">
+                                  ⚠️ OUT OF CONTROL
+                                </div>
+                              )}
+                              {data.trend !== 'stable' && (
+                                <div className="text-xs text-warning">
+                                  📈 Trend: {data.trend}
+                                </div>
+                              )}
+                            </div>,
+                            'Defect Rate'
+                          ];
+                        }
+                        if (name === 'upperControlLimit') return [`${value.toFixed(2)}%`, 'UCL'];
+                        if (name === 'centerLine') return [`${value.toFixed(2)}%`, 'Center Line'];
+                        if (name === 'lowerControlLimit') return [`${value.toFixed(2)}%`, 'LCL'];
+                        return [value, name];
+                      }}
+                    />
+
+                    <Legend
+                      wrapperStyle={{ color: '#F9FAFB' }}
+                      iconType="line"
+                    />
+
+                    {/* Control limit area (between UCL and LCL) */}
+                    <Area
+                      type="monotone"
+                      dataKey="upperControlLimit"
+                      stroke="none"
+                      fill="url(#controlZoneGradient)"
+                      fillOpacity={0.3}
+                      name="Control Zone"
+                    />
+
+                    {/* Upper Control Limit */}
+                    <Line
+                      type="monotone"
+                      dataKey="upperControlLimit"
+                      stroke="#EF4444"
+                      strokeWidth={2}
+                      strokeDasharray="8 4"
+                      dot={false}
+                      name="UCL"
+                      connectNulls={false}
+                    />
+
+                    {/* Center Line */}
+                    <Line
+                      type="monotone"
+                      dataKey="centerLine"
+                      stroke="#F59E0B"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      dot={false}
+                      name="Center Line"
+                    />
+
+                    {/* Lower Control Limit */}
+                    <Line
+                      type="monotone"
+                      dataKey="lowerControlLimit"
+                      stroke="#EF4444"
+                      strokeWidth={2}
+                      strokeDasharray="8 4"
+                      dot={false}
+                      name="LCL"
+                    />
+
+                    {/* Warning Limits */}
+                    <Line
+                      type="monotone"
+                      dataKey="upperWarningLimit"
+                      stroke="#F59E0B"
+                      strokeWidth={1}
+                      strokeDasharray="2 2"
+                      dot={false}
+                      name="Upper Warning"
+                      strokeOpacity={0.6}
+                    />
+
+                    <Line
+                      type="monotone"
+                      dataKey="lowerWarningLimit"
+                      stroke="#F59E0B"
+                      strokeWidth={1}
+                      strokeDasharray="2 2"
+                      dot={false}
+                      name="Lower Warning"
+                      strokeOpacity={0.6}
+                    />
+
+                    {/* Actual Defect Rate Line */}
+                    <Line
+                      type="monotone"
+                      dataKey="defectRate"
+                      stroke="#3B82F6"
+                      strokeWidth={3}
+                      dot={(props: unknown) => {
+                        const { cx, cy, payload } = props;
+                        if (!payload) return null;
+
+                        // Different colors for different conditions
+                        let fillColor = '#3B82F6'; // Normal - blue
+                        let size = 6;
+
+                        if (payload.isOutOfControl) {
+                          fillColor = '#EF4444'; // Out of control - red
+                          size = 8;
+                        } else if (payload.defectRate > payload.upperWarningLimit ||
+                          payload.defectRate < payload.lowerWarningLimit) {
+                          fillColor = '#F59E0B'; // Warning zone - orange
+                          size = 7;
+                        }
+
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={size}
+                            fill={fillColor}
+                            stroke="#FFFFFF"
+                            strokeWidth={2}
+                          />
+                        );
+                      }}
+                      activeDot={{
+                        r: 8,
+                        stroke: '#3B82F6',
+                        strokeWidth: 3,
+                        fill: '#1E40AF'
+                      }}
+                      name="Defect Rate"
+                      animationDuration={1500}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* SPC Analysis Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 pt-4 border-t border-border">
+                <div className="text-center p-3 bg-primary/10 rounded-lg border border-primary/20">
+                  <div className="text-lg font-bold text-primary">
+                    {((results.filter(r => r.status === 'FAIL').length / results.length) * 100).toFixed(2)}%
+                  </div>
+                  <div className="text-xs text-primary">Overall Defect Rate</div>
+                </div>
+
+                <div className="text-center p-3 bg-success/10 rounded-lg border border-success/20">
+                  <div className="text-lg font-bold text-success">
+                    {(() => {
+                      const batchSize = Math.max(1, Math.floor(results.length / 10));
+                      let inControlCount = 0;
+
+                      for (let i = 0; i < results.length; i += batchSize) {
+                        const batch = results.slice(i, i + batchSize);
+                        const defectRate = (batch.filter(r => r.status === 'FAIL').length / batch.length) * 100;
+                        const overallRate = (results.filter(r => r.status === 'FAIL').length / results.length) * 100;
+                        const p = overallRate / 100;
+                        const standardError = Math.sqrt((p * (1 - p)) / batch.length) * 100;
+                        const ucl = Math.min(100, overallRate + (3 * standardError));
+                        const lcl = Math.max(0, overallRate - (3 * standardError));
+
+                        if (defectRate <= ucl && defectRate >= lcl) {
+                          inControlCount++;
+                        }
+                      }
+
+                      const totalBatches = Math.ceil(results.length / batchSize);
+                      return Math.round((inControlCount / totalBatches) * 100);
+                    })()}%
+                  </div>
+                  <div className="text-xs text-success">Process In Control</div>
+                </div>
+
+                <div className="text-center p-3 bg-warning/10 rounded-lg border border-warning/20">
+                  <div className="text-lg font-bold text-warning">
+                    {(() => {
+                      // Calculate Cpk (Process Capability Index)
+                      const overallRate = (results.filter(r => r.status === 'FAIL').length / results.length) * 100;
+                      const target = 0; // Target defect rate is 0%
+                      const tolerance = 5; // 5% tolerance
+
+                      // Simplified Cpk calculation for demonstration
+                      const cpk = Math.max(0, (tolerance - Math.abs(overallRate - target)) / (3 * Math.sqrt(overallRate * (100 - overallRate) / results.length)));
+                      return cpk.toFixed(2);
+                    })()}
+                  </div>
+                  <div className="text-xs text-warning">Process Capability (Cpk)</div>
+                </div>
+
+                <div className="text-center p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                  <div className="text-lg font-bold text-destructive">
+                    {(() => {
+                      // Count out-of-control points
+                      const batchSize = Math.max(1, Math.floor(results.length / 10));
+                      let outOfControlCount = 0;
+
+                      for (let i = 0; i < results.length; i += batchSize) {
+                        const batch = results.slice(i, i + batchSize);
+                        const defectRate = (batch.filter(r => r.status === 'FAIL').length / batch.length) * 100;
+                        const overallRate = (results.filter(r => r.status === 'FAIL').length / results.length) * 100;
+                        const p = overallRate / 100;
+                        const standardError = Math.sqrt((p * (1 - p)) / batch.length) * 100;
+                        const ucl = Math.min(100, overallRate + (3 * standardError));
+                        const lcl = Math.max(0, overallRate - (3 * standardError));
+
+                        if (defectRate > ucl || defectRate < lcl) {
+                          outOfControlCount++;
+                        }
+                      }
+
+                      return outOfControlCount;
+                    })()}
+                  </div>
+                  <div className="text-xs text-destructive">Out of Control Points</div>
+                </div>
+              </div>
+
+              {/* SPC Alerts */}
+              {(() => {
+                const alerts = [];
+                const batchSize = Math.max(1, Math.floor(results.length / 10));
+                const overallRate = (results.filter(r => r.status === 'FAIL').length / results.length) * 100;
+
+                // Check for out-of-control conditions
+                for (let i = 0; i < results.length; i += batchSize) {
+                  const batch = results.slice(i, i + batchSize);
+                  const defectRate = (batch.filter(r => r.status === 'FAIL').length / batch.length) * 100;
+                  const p = overallRate / 100;
+                  const standardError = Math.sqrt((p * (1 - p)) / batch.length) * 100;
+                  const ucl = Math.min(100, overallRate + (3 * standardError));
+
+                  if (defectRate > ucl) {
+                    alerts.push({
+                      type: 'critical',
+                      message: `Defect rate spike detected: ${defectRate.toFixed(1)}% (exceeds UCL of ${ucl.toFixed(1)}%)`,
+                      time: new Date(Date.now() - (results.length - i) * 150000).toLocaleTimeString()
+                    });
+                  }
+                }
+
+                return alerts.length > 0 ? (
+                  <div className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle className="text-destructive" size={20} />
+                      <h4 className="font-semibold text-destructive">SPC Alerts</h4>
+                    </div>
+                    <div className="space-y-2">
+                      {alerts.slice(0, 3).map((alert, index) => (
+                        <div key={index} className="text-sm">
+                          <span className="text-destructive font-medium">{alert.time}:</span>
+                          <span className="text-foreground ml-2">{alert.message}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* Details Modal */}
         {showDetailsModal && selectedResult && (
@@ -1435,68 +1987,79 @@ const InspectionPage = () => {
                           </div>
                         </div>
                         <div className="relative border rounded-lg overflow-hidden">
-                          <video
-                            id="defect-video"
-                            controls
-                            className="w-full h-auto max-h-96"
-                            src={`http://localhost:5000/api/videos/${selectedResult.files.processed}`}
-                            onLoadStart={() => {
-                              console.log('🎥 Video loading started:', selectedResult.files?.processed);
-                              console.log('🎥 Full URL:', `http://localhost:5000/api/videos/${selectedResult.files?.processed}`);
-                            }}
-                            onLoadedMetadata={() => {
-                              console.log('🎥 Video metadata loaded');
-                              const video = document.getElementById('defect-video') as HTMLVideoElement;
-                              if (video) {
-                                console.log('🎥 Video duration:', video.duration);
-                                console.log('🎥 Video dimensions:', video.videoWidth, 'x', video.videoHeight);
-                              }
-                            }}
-                            onCanPlay={() => {
-                              console.log('🎥 Video can play:', selectedResult.files?.processed);
-                            }}
-                            onError={(e) => {
-                              const videoElement = e.target as HTMLVideoElement;
-                              console.error('❌ Video loading error:', {
-                                error: e,
-                                src: videoElement.src,
-                                networkState: videoElement.networkState,
-                                readyState: videoElement.readyState,
-                                filename: selectedResult.files?.processed
-                              });
-
-                              // Show detailed error message
-                              const container = videoElement.parentElement;
-                              if (container) {
-                                container.innerHTML = `
-                                  <div class="flex items-center justify-center h-48 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg">
-                                    <div class="text-center p-4">
-                                      <h4 class="font-bold mb-2">❌ Video Loading Failed</h4>
-                                      <p class="text-sm mb-1"><strong>File:</strong> ${selectedResult.files?.processed}</p>
-                                      <p class="text-xs mb-1"><strong>URL:</strong> http://localhost:5000/api/videos/${selectedResult.files?.processed}</p>
-                                      <p class="text-xs mb-3"><strong>Network State:</strong> ${videoElement.networkState} | <strong>Ready State:</strong> ${videoElement.readyState}</p>
-                                      <div class="space-x-2">
-                                        <button 
-                                          onclick="window.open('http://localhost:5000/api/videos/${selectedResult.files?.processed}', '_blank')"
-                                          class="px-3 py-1 bg-primary text-primary-foreground rounded text-xs hover:bg-primary/80"
-                                        >
-                                          Open Direct Link
-                                        </button>
-                                        <button 
-                                          onclick="window.open('video_test.html', '_blank')"
-                                          class="px-3 py-1 bg-success text-success-foreground rounded text-xs hover:bg-success/80"
-                                        >
-                                          Test Page
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                `;
-                              }
-                            }}
-                          >
-                            Your browser does not support the video tag.
-                          </video>
+                          {videoErrors.has(selectedResult.files?.processed || '') ? (
+                            <div className="flex items-center justify-center h-48 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg">
+                              <div className="text-center p-4">
+                                <h4 className="font-bold mb-2">❌ Video Loading Failed</h4>
+                                <p className="text-sm mb-1">
+                                  <strong>File:</strong> {selectedResult.files?.processed}
+                                </p>
+                                <p className="text-xs mb-1">
+                                  <strong>URL:</strong> {getApiUrl(`/api/videos/${selectedResult.files?.processed}`)}
+                                </p>
+                                <div className="space-x-2 mt-3">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => window.open(getApiUrl(`/api/videos/${selectedResult.files?.processed}`), '_blank')}
+                                  >
+                                    Open Direct Link
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setVideoErrors(prev => {
+                                        const newSet = new Set(prev);
+                                        newSet.delete(selectedResult.files?.processed || '');
+                                        return newSet;
+                                      });
+                                    }}
+                                  >
+                                    Retry
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <video
+                              controls
+                              className="w-full h-auto max-h-96"
+                              src={getApiUrl(`/api/videos/${selectedResult.files.processed}`)}
+                              onLoadStart={() => {
+                                if (import.meta.env.DEV) {
+                                  console.log('🎥 Video loading started:', selectedResult.files?.processed);
+                                  console.log('🎥 Full URL:', getApiUrl(`/api/videos/${selectedResult.files?.processed}`));
+                                }
+                              }}
+                              onLoadedMetadata={() => {
+                                if (import.meta.env.DEV) console.log('🎥 Video metadata loaded');
+                                const video = document.getElementById('defect-video') as HTMLVideoElement;
+                                if (video) {
+                                  console.log('🎥 Video duration:', video.duration);
+                                  console.log('🎥 Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+                                }
+                              }}
+                              onCanPlay={() => {
+                                if (import.meta.env.DEV) console.log('🎥 Video can play:', selectedResult.files?.processed);
+                              }}
+                              onError={(e) => {
+                                const videoElement = e.target as HTMLVideoElement;
+                                if (import.meta.env.DEV) {
+                                  console.error('❌ Video loading error:', {
+                                    error: e,
+                                    src: videoElement.src,
+                                    networkState: videoElement.networkState,
+                                    readyState: videoElement.readyState,
+                                    filename: selectedResult.files?.processed
+                                  });
+                                }
+                                handleVideoError(selectedResult.files?.processed || '');
+                              }}
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          )}
                           <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm">
                             Video Summary - {selectedResult.status === 'PASS' ? '✓ PASS' : selectedResult.status === 'QUESTIONABLE' ? '? QUESTIONABLE' : '✗ FAIL'}
                           </div>
@@ -1524,14 +2087,14 @@ const InspectionPage = () => {
                         </div>
                         <div className="relative border rounded-lg overflow-hidden">
                           <img
-                            src={`http://localhost:5000/api/images/${selectedResult.images.annotated}`}
+                            src={getApiUrl(`/api/images/${selectedResult.images.annotated}`)}
                             alt={`Frame ${selectedResult.frameNumber} - Annotated`}
                             className="w-full h-auto max-h-96 object-contain"
                             onError={(e) => {
                               // Fallback to original image if annotated not available
                               if (selectedResult.images?.original) {
                                 (e.target as HTMLImageElement).src =
-                                  `http://localhost:5000/api/images/${selectedResult.images.original}`;
+                                  getApiUrl(`/api/images/${selectedResult.images.original}`);
                               } else {
                                 // Show placeholder if no images available
                                 (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzlhOWE5YSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkZyYW1lIEltYWdlIE5vdCBBdmFpbGFibGU8L3RleHQ+PC9zdmc+';
@@ -1547,14 +2110,14 @@ const InspectionPage = () => {
                       // Regular PCB image display
                       <div className="relative border rounded-lg overflow-hidden">
                         <img
-                          src={`http://localhost:5000/api/images/${selectedResult.images.annotated}`}
+                          src={getApiUrl(`/api/images/${selectedResult.images.annotated}`)}
                           alt={`${selectedResult.pcbId} - Annotated`}
                           className="w-full h-auto max-h-96 object-contain"
                           onError={(e) => {
                             // Fallback to original image if annotated not available
                             if (selectedResult.images?.original) {
                               (e.target as HTMLImageElement).src =
-                                `http://localhost:5000/api/images/${selectedResult.images.original}`;
+                                getApiUrl(`/api/images/${selectedResult.images.original}`);
                             } else {
                               // Show placeholder if no images available
                               (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzlhOWE5YSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIE5vdCBBdmFpbGFibGU8L3RleHQ+PC9zdmc+';
