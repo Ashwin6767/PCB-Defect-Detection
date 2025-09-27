@@ -18,6 +18,22 @@ DATASET/valid/
 
 # YOLO runs (already committed one set; ignore future unless curated)
 
+# AOI System - User uploads and processed results
+uploads/
+results/
+*.mp4
+*.avi
+*.mov
+*.webm
+*.jpg
+*.jpeg
+*.png
+*.webp
+# Keep sample images and model files
+!**/assets/**
+!best.pt
+!pcb-sample-*.png
+
 # OS
 .DS_Store
 Thumbs.db

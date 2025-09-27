@@ -7,11 +7,24 @@ import pcbSample2 from '@/assets/pcb-sample-2.png';
 import pcbSample3 from '@/assets/pcb-sample-3.png';
 
 interface InspectionResult {
-  pcbId: string;
+  pcbId?: string;
+  videoId?: string;
+  frameNumber?: number;
+  timestamp_seconds?: number;
   status: 'PASS' | 'FAIL' | 'QUESTIONABLE';
   defectType: string;
   metrics?: {
-    total_defects: number;
+    total_defects?: number;
+    total_frames?: number;
+    processed_frames?: number;
+    frames_with_defects?: number;
+    defect_density?: number;
+    duration_seconds?: number;
+    fps?: number;
+    processing_interval_ms?: number;
+    frame_interval?: number;
+    frame_number?: number;
+    video_timestamp?: number;
   };
   defects_detected?: Array<{
     type: string;
@@ -19,11 +32,34 @@ interface InspectionResult {
     bbox: [number, number, number, number]; // x1, y1, x2, y2
     area: number;
   }>;
+  defect_frames?: Array<{
+    frame: number;
+    timestamp: number;
+    defects: Array<{
+      type: string;
+      confidence: number;
+      bbox: [number, number, number, number];
+      area: number;
+    }>;
+  }>;
   images?: {
     original: string;
     annotated: string;
   };
+  files?: {
+    original: string;
+    processed: string;
+  };
 }
+
+// Move sample results outside component to prevent re-creation
+const sampleResults: InspectionResult[] = [
+  { pcbId: 'PCB-001', status: 'PASS', defectType: 'None' },
+  { pcbId: 'PCB-002', status: 'FAIL', defectType: 'Solder Bridge' },
+  { pcbId: 'PCB-003', status: 'FAIL', defectType: 'Missing Component' },
+  { pcbId: 'PCB-004', status: 'PASS', defectType: 'None' },
+  { pcbId: 'PCB-005', status: 'FAIL', defectType: 'Cold Joint' },
+];
 
 const InspectionPage = () => {
   const navigate = useNavigate();
@@ -34,30 +70,28 @@ const InspectionPage = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [expectedResultCount, setExpectedResultCount] = useState(0);
   const [animationKey, setAnimationKey] = useState(0);
+  const [uploadMode, setUploadMode] = useState<'images' | 'video'>('images');
 
   const pcbImages = [pcbSample1, pcbSample2, pcbSample3];
-  
-  const sampleResults: InspectionResult[] = [
-    { pcbId: 'PCB-001', status: 'PASS', defectType: 'None' },
-    { pcbId: 'PCB-002', status: 'FAIL', defectType: 'Solder Bridge' },
-    { pcbId: 'PCB-003', status: 'FAIL', defectType: 'Missing Component' },
-    { pcbId: 'PCB-004', status: 'PASS', defectType: 'None' },
-    { pcbId: 'PCB-005', status: 'FAIL', defectType: 'Cold Joint' },
-  ];
+
+
 
   useEffect(() => {
     // Check for YOLOv10 results first
     const storedResults = sessionStorage.getItem('inspectionResults');
     const uploadedFiles = sessionStorage.getItem('uploadedFiles');
-    
+    const storedUploadMode = sessionStorage.getItem('uploadMode') as 'images' | 'video' || 'images';
+
+    setUploadMode(storedUploadMode);
+
     // Determine the expected number of results
     let expectedCount = 5; // default fallback
     let resultsToUse = sampleResults; // default to sample results
-    
+
     if (uploadedFiles) {
       const fileList = JSON.parse(uploadedFiles);
-      expectedCount = fileList.length;
-      
+      expectedCount = storedUploadMode === 'video' ? 1 : fileList.length;
+
       // If we have YOLOv10 results, use them instead of samples
       if (storedResults) {
         const parsedResults = JSON.parse(storedResults);
@@ -65,9 +99,9 @@ const InspectionPage = () => {
         expectedCount = parsedResults.length;
       }
     }
-    
+
     setExpectedResultCount(expectedCount);
-    
+
     let currentIndex = 0;
     const interval = setInterval(() => {
       if (currentIndex < resultsToUse.length) {
@@ -83,10 +117,10 @@ const InspectionPage = () => {
         setIsInspecting(false);
         clearInterval(interval);
       }
-    }, 2000);
+    }, storedUploadMode === 'video' ? 5000 : 2000); // Longer delay for video processing
 
     return () => clearInterval(interval);
-  }, []); // Remove dependency to prevent re-running
+  }, [pcbImages.length]); // Empty dependency array to run only once
 
   // NOTE: Removed automatic backend cleanup on mount.
   // Previous logic called /api/cleanup here, which immediately deleted the freshly
@@ -127,7 +161,7 @@ const InspectionPage = () => {
               sessionStorage.removeItem('uploadedFiles');
               sessionStorage.removeItem('inspectionResults');
               // Call backend cleanup
-              fetch('http://localhost:5000/api/cleanup', { method: 'POST' }).catch(() => {});
+              fetch('http://localhost:5000/api/cleanup', { method: 'POST' }).catch(() => { });
               navigate('/');
             }}
             className="btn-secondary"
@@ -135,43 +169,45 @@ const InspectionPage = () => {
             <ArrowLeft className="mr-2" size={20} />
             Back to Upload
           </Button>
-          
+
           <div className="text-center">
             <h1 className="text-4xl font-bold text-foreground">AOI Inspector</h1>
             <p className="text-lg text-muted-foreground mt-2">
-              {isInspecting ? 'Inspection in Progress...' : 'Inspection Complete'}
+              {isInspecting ?
+                (uploadMode === 'video' ? 'Video Processing in Progress...' : 'Inspection in Progress...') :
+                (uploadMode === 'video' ? 'Video Processing Complete' : 'Inspection Complete')
+              }
             </p>
           </div>
-          
+
           <div className="w-32"></div> {/* Spacer for centering */}
         </div>
 
         {/* Conveyor Belt Section */}
         <div className="industrial-card p-8 mb-8 animate-fade-in-up">
           <h2 className="text-2xl font-semibold mb-6 text-center">Inspection System</h2>
-          
+
           <div className="relative">
             {/* Inspection Camera */}
             <div className="inspection-camera z-10">
               <Camera size={32} className="text-accent" />
               <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-8 h-1 bg-accent/30 rounded-full"></div>
             </div>
-            
+
             {/* Conveyor Belt */}
             <div className="conveyor-belt h-24 relative rounded-lg" key={animationKey}>
               {/* PCB Items Moving on Belt */}
               {pcbImages.map((image, index) => (
                 <div
                   key={`pcb-${index}`}
-                  className={`pcb-item ${
-                    index === currentPcbIndex && results.length > 0
-                      ? results[results.length - 1]?.status === 'PASS'
-                        ? 'flash-pass'
-                        : results[results.length - 1]?.status === 'QUESTIONABLE'
+                  className={`pcb-item ${index === currentPcbIndex && results.length > 0
+                    ? results[results.length - 1]?.status === 'PASS'
+                      ? 'flash-pass'
+                      : results[results.length - 1]?.status === 'QUESTIONABLE'
                         ? 'flash-questionable'
                         : 'flash-fail'
-                      : ''
-                  }`}
+                    : ''
+                    }`}
                   style={{
                     animationDelay: `${index * 2.67}s`,
                     backgroundImage: `url(${image})`,
@@ -182,7 +218,7 @@ const InspectionPage = () => {
                 />
               ))}
             </div>
-            
+
             {/* Belt Supports */}
             <div className="flex justify-between mt-4">
               <div className="w-8 h-8 bg-metallic rounded-full"></div>
@@ -195,12 +231,14 @@ const InspectionPage = () => {
         <div className="industrial-card animate-fade-in-up animate-stagger-1">
           <div className="p-6">
             <h2 className="text-2xl font-semibold mb-6">Inspection Results</h2>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-4 px-4 font-semibold text-foreground">PCB ID</th>
+                    <th className="text-left py-4 px-4 font-semibold text-foreground">
+                      {uploadMode === 'video' ? 'Video ID' : 'PCB ID'}
+                    </th>
                     <th className="text-left py-4 px-4 font-semibold text-foreground">Status</th>
                     <th className="text-left py-4 px-4 font-semibold text-foreground">Defect Type</th>
                     <th className="text-left py-4 px-4 font-semibold text-foreground">Details</th>
@@ -213,19 +251,25 @@ const InspectionPage = () => {
                       className={`${getStatusClass(result.status)} transition-all duration-500 animate-fade-in-up`}
                       style={{ animationDelay: `${index * 0.1}s` }}
                     >
-                      <td className="py-4 px-4 font-medium">{result.pcbId}</td>
+                      <td className="py-4 px-4 font-medium">
+                        {result.pcbId || result.videoId}
+                        {result.frameNumber && (
+                          <div className="text-xs text-muted-foreground">
+                            Frame {result.frameNumber} ({result.timestamp_seconds?.toFixed(1)}s)
+                          </div>
+                        )}
+                      </td>
                       <td className="py-4 px-4">
-                        <span className={`font-semibold ${
-                          result.status === 'PASS' ? 'text-success' :
+                        <span className={`font-semibold ${result.status === 'PASS' ? 'text-success' :
                           result.status === 'QUESTIONABLE' ? 'text-warning' :
-                          'text-destructive'
-                        }`}>
+                            'text-destructive'
+                          }`}>
                           {result.status}
                         </span>
                       </td>
                       <td className="py-4 px-4">{result.defectType}</td>
                       <td className="py-4 px-4">
-                        {result.metrics || result.defects_detected ? (
+                        {result.metrics || result.defects_detected || result.defect_frames ? (
                           <Button
                             variant="outline"
                             size="sm"
@@ -242,7 +286,7 @@ const InspectionPage = () => {
                       </td>
                     </tr>
                   ))}
-                  
+
                   {/* Show placeholder rows while inspecting */}
                   {isInspecting && Array.from({ length: expectedResultCount - results.length }).map((_, index) => (
                     <tr key={`pending-${index}`} className="opacity-30">
@@ -255,7 +299,7 @@ const InspectionPage = () => {
                 </tbody>
               </table>
             </div>
-            
+
             {/* Counter Section - Updates automatically */}
             <div className="mt-6 p-4 bg-muted rounded-lg" key={`counter-${animationKey}`}>
               <div className="grid grid-cols-4 gap-4 text-center">
@@ -295,7 +339,7 @@ const InspectionPage = () => {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-2xl font-semibold">
-                    Defect Analysis - {selectedResult.pcbId}
+                    {selectedResult.videoId ? 'Video' : 'Defect'} Analysis - {selectedResult.pcbId || selectedResult.videoId}
                   </h3>
                   <Button
                     variant="outline"
@@ -306,10 +350,61 @@ const InspectionPage = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* PCB Image with Bounding Boxes */}
+                  {/* PCB Image/Video with Analysis */}
                   <div className="space-y-4">
-                    <h4 className="text-lg font-medium">PCB Analysis</h4>
-                    {selectedResult.images?.annotated ? (
+                    <h4 className="text-lg font-medium">
+                      {selectedResult.videoId ? 'Video Analysis' : 'PCB Analysis'}
+                    </h4>
+
+                    {selectedResult.videoId && selectedResult.files?.processed ? (
+                      // Video summary view - show full video
+                      <div className="space-y-4">
+                        <div className="relative border rounded-lg overflow-hidden">
+                          <video
+                            id="defect-video"
+                            controls
+                            className="w-full h-auto max-h-96"
+                            src={`http://localhost:5000/api/videos/${selectedResult.files.processed}`}
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                          <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm">
+                            Video Summary - {selectedResult.status === 'PASS' ? '✓ PASS' : selectedResult.status === 'QUESTIONABLE' ? '? QUESTIONABLE' : '✗ FAIL'}
+                          </div>
+                        </div>
+                      </div>
+                    ) : selectedResult.frameNumber && selectedResult.images?.annotated ? (
+                      // Individual frame view - show specific frame
+                      <div className="space-y-4">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                          <h5 className="font-medium text-blue-900 mb-1">Video Frame Analysis</h5>
+                          <div className="text-sm text-blue-700">
+                            Frame {selectedResult.frameNumber} at {selectedResult.timestamp_seconds?.toFixed(2)}s
+                          </div>
+                        </div>
+                        <div className="relative border rounded-lg overflow-hidden">
+                          <img
+                            src={`http://localhost:5000/api/images/${selectedResult.images.annotated}`}
+                            alt={`Frame ${selectedResult.frameNumber} - Annotated`}
+                            className="w-full h-auto max-h-96 object-contain"
+                            onError={(e) => {
+                              // Fallback to original image if annotated not available
+                              if (selectedResult.images?.original) {
+                                (e.target as HTMLImageElement).src = 
+                                  `http://localhost:5000/api/images/${selectedResult.images.original}`;
+                              } else {
+                                // Show placeholder if no images available
+                                (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzlhOWE5YSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkZyYW1lIEltYWdlIE5vdCBBdmFpbGFibGU8L3RleHQ+PC9zdmc+';
+                              }
+                            }}
+                          />
+                          <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm">
+                            Frame {selectedResult.frameNumber} - {selectedResult.status === 'PASS' ? '✓ PASS' : selectedResult.status === 'QUESTIONABLE' ? '? QUESTIONABLE' : '✗ FAIL'}
+                          </div>
+                        </div>
+                      </div>
+                    ) : selectedResult.images?.annotated ? (
+                      // Regular PCB image display
                       <div className="relative border rounded-lg overflow-hidden">
                         <img
                           src={`http://localhost:5000/api/images/${selectedResult.images.annotated}`}
@@ -318,7 +413,7 @@ const InspectionPage = () => {
                           onError={(e) => {
                             // Fallback to original image if annotated not available
                             if (selectedResult.images?.original) {
-                              (e.target as HTMLImageElement).src = 
+                              (e.target as HTMLImageElement).src =
                                 `http://localhost:5000/api/images/${selectedResult.images.original}`;
                             } else {
                               // Show placeholder if no images available
@@ -333,9 +428,9 @@ const InspectionPage = () => {
                     ) : (
                       <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
                         <Camera className="mx-auto h-12 w-12 text-gray-400 mb-2" />
-                        <p className="text-gray-500">No image available for this result</p>
+                        <p className="text-gray-500">No {selectedResult.videoId ? 'video' : 'image'} available for this result</p>
                         <p className="text-xs text-gray-400 mt-2">
-                          This may be sample data or the image files may have been cleaned up
+                          This may be sample data or the files may have been cleaned up
                         </p>
                       </div>
                     )}
@@ -344,15 +439,15 @@ const InspectionPage = () => {
                   {/* Defect Details */}
                   <div className="space-y-4">
                     <h4 className="text-lg font-medium">Detection Details</h4>
-                    
+
                     {/* Summary */}
                     <div className="bg-gray-50 rounded-lg p-4">
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <span className="font-medium">Status:</span>
-                          <span className={`ml-2 font-bold ${
-                            selectedResult.status === 'PASS' ? 'text-green-600' : 'text-red-600'
-                          }`}>
+                          <span className={`ml-2 font-bold ${selectedResult.status === 'PASS' ? 'text-green-600' :
+                            selectedResult.status === 'QUESTIONABLE' ? 'text-yellow-600' : 'text-red-600'
+                            }`}>
                             {selectedResult.status}
                           </span>
                         </div>
@@ -366,6 +461,26 @@ const InspectionPage = () => {
                             {selectedResult.metrics?.total_defects || selectedResult.defects_detected?.length || 0}
                           </span>
                         </div>
+                        {selectedResult.videoId && selectedResult.metrics && (
+                          <>
+                            <div>
+                              <span className="font-medium">Total Frames:</span>
+                              <span className="ml-2">{selectedResult.metrics.total_frames || 0}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium">Processed Frames:</span>
+                              <span className="ml-2">{selectedResult.metrics.processed_frames || 0}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium">Frames with Defects:</span>
+                              <span className="ml-2">{selectedResult.metrics.frames_with_defects || 0}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium">Duration:</span>
+                              <span className="ml-2">{selectedResult.metrics.duration_seconds?.toFixed(1) || 0}s</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -378,6 +493,22 @@ const InspectionPage = () => {
                             <span>Total Defects Detected:</span>
                             <span className="font-medium">{selectedResult.metrics.total_defects || 0}</span>
                           </div>
+                          {selectedResult.videoId && (
+                            <>
+                              <div className="flex justify-between">
+                                <span>Defect Density:</span>
+                                <span className="font-medium">{(selectedResult.metrics.defect_density! * 100).toFixed(2)}%</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Video FPS:</span>
+                                <span className="font-medium">{selectedResult.metrics.fps?.toFixed(1) || 0}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>Processing Interval:</span>
+                                <span className="font-medium">700ms</span>
+                              </div>
+                            </>
+                          )}
                           <div className="flex justify-between">
                             <span>Model Confidence Threshold:</span>
                             <span className="font-medium">0.25</span>
@@ -386,6 +517,57 @@ const InspectionPage = () => {
                             <span>Detection Model:</span>
                             <span className="font-medium">YOLOv10</span>
                           </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Video Defect Frames */}
+                    {selectedResult.defect_frames && selectedResult.defect_frames.length > 0 && (
+                      <div>
+                        <h5 className="font-medium mb-2">Defect Frames Timeline</h5>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {selectedResult.defect_frames.slice(0, 10).map((frame, index) => (
+                            <div key={index} className="bg-red-50 border border-red-200 rounded-lg p-3 hover:bg-red-100 transition-colors">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-red-900">
+                                      Frame {frame.frame}
+                                    </span>
+                                    <span className="text-sm text-red-700 bg-red-200 px-2 py-1 rounded">
+                                      {frame.timestamp.toFixed(2)}s
+                                    </span>
+                                    <button
+                                      onClick={() => {
+                                        const video = document.getElementById('defect-video') as HTMLVideoElement;
+                                        if (video) {
+                                          video.currentTime = frame.timestamp;
+                                          video.play();
+                                        }
+                                      }}
+                                      className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors"
+                                    >
+                                      Jump to Frame
+                                    </button>
+                                  </div>
+                                  <div className="text-sm text-red-700 mt-1">
+                                    {frame.defects.length} defect{frame.defects.length !== 1 ? 's' : ''} detected
+                                  </div>
+                                  <div className="text-xs text-red-600 mt-1">
+                                    <strong>Types:</strong> {frame.defects.map(d => d.type.replace('_', ' ')).join(', ')}
+                                  </div>
+                                  <div className="text-xs text-red-600 mt-1">
+                                    <strong>Confidence:</strong> {frame.defects.map(d => `${(d.confidence * 100).toFixed(1)}%`).join(', ')}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {selectedResult.defect_frames.length > 10 && (
+                            <div className="text-sm text-gray-500 text-center py-2 bg-gray-100 rounded">
+                              ... and {selectedResult.defect_frames.length - 10} more frames with defects
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -419,20 +601,33 @@ const InspectionPage = () => {
                       </div>
                     )}
 
-                    {/* View Original Image Button */}
+                    {/* View Original File Button */}
                     {selectedResult.images?.original && (
                       <Button
                         variant="outline"
                         className="w-full mb-2"
                         onClick={() => window.open(
-                          `http://localhost:5000/api/images/${selectedResult.images?.original}`, 
+                          `http://localhost:5000/api/images/${selectedResult.images?.original}`,
                           '_blank'
                         )}
                       >
                         View Original Image
                       </Button>
                     )}
-                    
+
+                    {selectedResult.files?.original && (
+                      <Button
+                        variant="outline"
+                        className="w-full mb-2"
+                        onClick={() => window.open(
+                          `http://localhost:5000/api/videos/${selectedResult.files?.original}`,
+                          '_blank'
+                        )}
+                      >
+                        View Original Video
+                      </Button>
+                    )}
+
 
                   </div>
                 </div>

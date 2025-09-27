@@ -14,6 +14,8 @@ import os
 import json
 from datetime import datetime
 import uuid
+import cv2
+import tempfile
 
 class YOLOv10AOIBackend:
     def __init__(self, model_path="best.pt"):
@@ -176,6 +178,254 @@ class YOLOv10AOIBackend:
         # Return the defect with highest confidence
         primary = max(defects, key=lambda x: x['confidence'])
         return primary['type'].replace('_', ' ').title()
+    
+    def process_pcb_video(self, video_file, video_id=None):
+        """Process a video file for PCB defect detection"""
+        
+        if video_id is None:
+            video_id = f"VIDEO-{uuid.uuid4().hex[:8]}"
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        try:
+            print(f"Starting video processing for {video_id}")
+            
+            # Save uploaded video temporarily
+            temp_video_path = os.path.join("uploads", f"{video_id}_{timestamp}.mp4")
+            print(f"Saving video to: {temp_video_path}")
+            video_file.save(temp_video_path)
+            
+            # Verify file was saved
+            if not os.path.exists(temp_video_path):
+                raise Exception(f"Failed to save video file to {temp_video_path}")
+            
+            print(f"Video file saved successfully, size: {os.path.getsize(temp_video_path)} bytes")
+            
+            # Open video with OpenCV
+            cap = cv2.VideoCapture(temp_video_path)
+            if not cap.isOpened():
+                raise Exception(f"Could not open video file: {temp_video_path}")
+            
+            # Get video properties
+            frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            print(f"Video properties: {frame_width}x{frame_height} @ {fps:.2f} FPS, {total_frames} frames")
+            
+            if frame_width == 0 or frame_height == 0 or fps == 0:
+                raise Exception("Invalid video properties - video may be corrupted")
+            
+            # Setup output video
+            output_video_path = os.path.join("results", f"{video_id}_{timestamp}_processed.mp4")
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+            
+            if not out.isOpened():
+                raise Exception("Failed to create output video writer")
+            
+            frame_count = 0
+            total_defects = 0
+            defect_frames = []
+            all_defects = []
+            
+            print(f"Starting frame processing...")
+            
+            # Calculate frame interval for 700ms sampling
+            frame_interval = max(1, int(fps * 0.7))  # Process every 700ms worth of frames
+            print(f"Processing every {frame_interval} frames (700ms intervals)")
+            
+            # Process frames at 700ms intervals
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                frame_count += 1
+                
+                # Only process frames at 700ms intervals
+                should_process = (frame_count - 1) % frame_interval == 0
+                
+                if should_process:
+                    print(f"Processing frame {frame_count}/{total_frames}")
+                    
+                    # Run YOLO inference on frame
+                    results = self.model.predict(source=frame, save=False, conf=0.25, verbose=False)
+                    result = results[0]
+                    
+                    # Extract defects from this frame
+                    frame_defects = []
+                    if result.boxes is not None:
+                        frame_defects = self._extract_defect_details(result.boxes)
+                        total_defects += len(frame_defects)
+                        
+                        if frame_defects:
+                            defect_frames.append({
+                                'frame': frame_count,
+                                'timestamp': frame_count / fps,
+                                'defects': frame_defects
+                            })
+                            all_defects.extend(frame_defects)
+                    
+                    # Annotate frame
+                    annotated_frame = result.plot()
+                    
+                    # Add frame info
+                    status_text = f"Frame: {frame_count}/{total_frames} | Defects: {len(frame_defects)} | Processed"
+                    cv2.putText(annotated_frame, status_text, (10, 30), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                else:
+                    # For non-processed frames, just copy the original frame
+                    annotated_frame = frame.copy()
+                    
+                    # Add frame info showing it was skipped
+                    status_text = f"Frame: {frame_count}/{total_frames} | Skipped"
+                    cv2.putText(annotated_frame, status_text, (10, 30), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                
+                # Write frame to output video
+                out.write(annotated_frame)
+            
+            # Cleanup
+            cap.release()
+            out.release()
+            
+            # Calculate processed frames and defect density
+            processed_frames = (total_frames + frame_interval - 1) // frame_interval  # Ceiling division
+            frames_with_defects = len(defect_frames)
+            defect_density = frames_with_defects / processed_frames if processed_frames > 0 else 0
+            
+            print(f"Processed {processed_frames} frames out of {total_frames} total frames")
+            print(f"Found defects in {frames_with_defects} processed frames")
+            print(f"Defect density: {defect_density:.3f}")
+            
+            # Determine overall status based on processed frames
+            if defect_density > 0.3:  # More than 30% of processed frames have defects
+                status = "FAIL"
+            elif defect_density > 0.15:  # 15-30% of processed frames have defects
+                status = "QUESTIONABLE"
+            else:
+                status = "PASS"
+            
+            # Get primary defect type
+            primary_defect = "None"
+            if all_defects:
+                defect_types = {}
+                for defect in all_defects:
+                    defect_type = defect['type']
+                    if defect_type not in defect_types:
+                        defect_types[defect_type] = []
+                    defect_types[defect_type].append(defect['confidence'])
+                
+                # Find most common defect type with highest average confidence
+                primary_defect = max(defect_types.keys(), 
+                                   key=lambda x: (len(defect_types[x]), sum(defect_types[x])/len(defect_types[x])))
+                primary_defect = primary_defect.replace('_', ' ').title()
+            
+            # Create individual results for each defect frame (like batch image processing)
+            frame_results = []
+            
+            # Add overall video summary as first result
+            summary_result = {
+                "pcbId": f"{video_id}-SUMMARY",
+                "videoId": video_id,
+                "status": status,
+                "defectType": f"Video Summary - {primary_defect}",
+                "timestamp": datetime.now().isoformat(),
+                "metrics": {
+                    "total_frames": total_frames,
+                    "processed_frames": processed_frames,
+                    "frames_with_defects": frames_with_defects,
+                    "total_defects": total_defects,
+                    "defect_density": round(defect_density, 4),
+                    "duration_seconds": round(total_frames / fps, 2),
+                    "fps": round(fps, 2),
+                    "processing_interval_ms": 700,
+                    "frame_interval": frame_interval
+                },
+                "files": {
+                    "original": os.path.basename(temp_video_path),
+                    "processed": os.path.basename(output_video_path)
+                }
+            }
+            frame_results.append(summary_result)
+            
+            # Create individual results for each defect frame
+            for i, frame_data in enumerate(defect_frames[:20]):  # Limit to first 20 defect frames
+                # Extract frame image
+                frame_image_filename = f"{video_id}_frame_{frame_data['frame']}.jpg"
+                frame_image_path = os.path.join("results", frame_image_filename)
+                
+                # Extract the specific frame from video
+                cap_extract = cv2.VideoCapture(temp_video_path)
+                cap_extract.set(cv2.CAP_PROP_POS_FRAMES, frame_data['frame'] - 1)
+                ret_extract, frame_extract = cap_extract.read()
+                cap_extract.release()
+                
+                if ret_extract:
+                    # Run YOLO on this specific frame to get annotated version
+                    results_extract = self.model.predict(source=frame_extract, save=False, conf=0.25, verbose=False)
+                    annotated_frame_extract = results_extract[0].plot()
+                    
+                    # Save both original and annotated frame
+                    original_frame_filename = f"{video_id}_frame_{frame_data['frame']}_original.jpg"
+                    original_frame_path = os.path.join("results", original_frame_filename)
+                    cv2.imwrite(original_frame_path, frame_extract)
+                    cv2.imwrite(frame_image_path, annotated_frame_extract)
+                
+                # Determine frame status
+                frame_defect_count = len(frame_data['defects'])
+                if frame_defect_count > 3:
+                    frame_status = "FAIL"
+                elif frame_defect_count > 1:
+                    frame_status = "QUESTIONABLE"
+                else:
+                    frame_status = "FAIL"  # Any defects in a frame is considered fail
+                
+                # Get primary defect for this frame
+                frame_primary_defect = "None"
+                if frame_data['defects']:
+                    frame_primary_defect = max(frame_data['defects'], key=lambda x: x['confidence'])['type'].replace('_', ' ').title()
+                
+                frame_result = {
+                    "pcbId": f"{video_id}-F{frame_data['frame']:04d}",
+                    "videoId": video_id,
+                    "frameNumber": frame_data['frame'],
+                    "timestamp_seconds": frame_data['timestamp'],
+                    "status": frame_status,
+                    "defectType": frame_primary_defect,
+                    "timestamp": datetime.now().isoformat(),
+                    "metrics": {
+                        "total_defects": frame_defect_count,
+                        "frame_number": frame_data['frame'],
+                        "video_timestamp": round(frame_data['timestamp'], 2)
+                    },
+                    "defects_detected": frame_data['defects'],
+                    "images": {
+                        "original": original_frame_filename if ret_extract else None,
+                        "annotated": frame_image_filename if ret_extract else None
+                    }
+                }
+                frame_results.append(frame_result)
+            
+            # Save individual results
+            for i, result in enumerate(frame_results):
+                result_filename = f"{video_id}_{timestamp}_result_{i:03d}.json"
+                result_path = os.path.join("results", result_filename)
+                with open(result_path, 'w') as f:
+                    json.dump(result, f, indent=2)
+            
+            return frame_results
+            
+        except Exception as e:
+            return {
+                "videoId": video_id,
+                "status": "ERROR",
+                "defectType": f"Processing Error: {str(e)}",
+                "timestamp": datetime.now().isoformat(),
+                "error": True
+            }
 
 # Flask API setup
 app = Flask(__name__)
@@ -205,6 +455,39 @@ def inspect_pcb():
         return jsonify(result)
         
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/inspect-video', methods=['POST'])
+def inspect_video():
+    """API endpoint for video PCB inspection"""
+    
+    try:
+        print("Video inspection endpoint called")
+        
+        if 'video' not in request.files:
+            print("No video file in request")
+            return jsonify({'error': 'No video file provided'}), 400
+        
+        file = request.files['video']
+        if file.filename == '':
+            print("Empty video filename")
+            return jsonify({'error': 'No video file selected'}), 400
+        
+        print(f"Processing video file: {file.filename}")
+        
+        # Get optional video ID
+        video_id = request.form.get('videoId')
+        
+        # Process the video
+        results = aoi_backend.process_pcb_video(file, video_id)
+        
+        print(f"Video processing complete: {len(results)} results generated")
+        return jsonify({'results': results})
+        
+    except Exception as e:
+        print(f"Video processing error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/inspect-batch', methods=['POST'])
@@ -248,6 +531,51 @@ def serve_image(filename):
         return send_from_directory('results', filename)
     
     return jsonify({'error': 'Image not found'}), 404
+
+@app.route('/api/videos/<path:filename>')
+def serve_video(filename):
+    """Serve uploaded and processed videos"""
+    
+    # Try uploads directory first
+    if os.path.exists(os.path.join('uploads', filename)):
+        return send_from_directory('uploads', filename)
+    
+    # Then try results directory
+    if os.path.exists(os.path.join('results', filename)):
+        return send_from_directory('results', filename)
+    
+    return jsonify({'error': 'Video not found'}), 404
+
+@app.route('/api/extract-frame/<video_id>/<int:frame_number>')
+def extract_frame(video_id, frame_number):
+    """Extract a specific frame from a processed video"""
+    
+    try:
+        # Find the video file
+        video_files = [f for f in os.listdir('results') if f.startswith(video_id) and f.endswith('.mp4')]
+        if not video_files:
+            return jsonify({'error': 'Video not found'}), 404
+        
+        video_path = os.path.join('results', video_files[0])
+        
+        # Extract frame
+        cap = cv2.VideoCapture(video_path)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number - 1)  # Frame numbers are 1-based
+        ret, frame = cap.read()
+        cap.release()
+        
+        if not ret:
+            return jsonify({'error': 'Could not extract frame'}), 404
+        
+        # Save frame as image
+        frame_filename = f"{video_id}_frame_{frame_number}.jpg"
+        frame_path = os.path.join('results', frame_filename)
+        cv2.imwrite(frame_path, frame)
+        
+        return send_from_directory('results', frame_filename)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/results/<pcb_id>')
 def get_result(pcb_id):
@@ -297,8 +625,11 @@ if __name__ == '__main__':
     print("🌐 Server will be available at: http://localhost:5000")
     print("📡 API Endpoints:")
     print("   POST /api/inspect - Single PCB inspection")
-    print("   POST /api/inspect-batch - Batch PCB inspection") 
+    print("   POST /api/inspect-batch - Batch PCB inspection")
+    print("   POST /api/inspect-video - Video PCB inspection") 
     print("   GET  /api/images/<filename> - Serve images")
+    print("   GET  /api/videos/<filename> - Serve videos")
+    print("   GET  /api/extract-frame/<video_id>/<frame> - Extract specific frame")
     print("   GET  /api/results/<pcb_id> - Get detailed results")
     print("   POST /api/cleanup - Clean up old files")
     print("   GET  /api/health - Health check")
