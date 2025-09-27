@@ -1,0 +1,9 @@
+Class Name,Total Instances,Train Instances,Valid Instances,Test Instances,Total Images with Class,Percentage of Dataset
+falsecopper,2019,809,1210,0,473,12.7%
+missinghole,1883,901,982,0,428,11.49%
+mousebite,2961,1528,1433,0,673,18.07%
+opencircuit,3049,1612,1437,0,809,21.72%
+pinhole,2811,1440,1371,0,804,21.58%
+scratch,2088,1052,1036,0,806,21.64%
+shortcircuit,2510,1332,1178,0,721,19.36%
+spur,2436,1175,1261,0,656,17.61%

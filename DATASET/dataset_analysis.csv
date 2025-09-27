@@ -1,0 +1,50 @@
+DATASET OVERVIEW,,,,,,
+Metric,Value,,,,,
+Total Classes,8,,,,,
+Total Images (All Splits),3725,,,,,
+Total Images with Annotations,3725,,,,,
+Total Images without Annotations,0,,,,,
+,,,,,,
+CLASS STATISTICS SUMMARY,,,,,,
+Class Name,Total Instances,Total Images with Class,Percentage of Annotated Images,Avg Instances per Image,Train Instances,Valid Instances,Test Instances
+falsecopper,2019,473,12.7%,4.27,809,1210,0
+missinghole,1883,428,11.49%,4.4,901,982,0
+mousebite,2961,673,18.07%,4.4,1528,1433,0
+opencircuit,3049,809,21.72%,3.77,1612,1437,0
+pinhole,2811,804,21.58%,3.5,1440,1371,0
+scratch,2088,806,21.64%,2.59,1052,1036,0
+shortcircuit,2510,721,19.36%,3.48,1332,1178,0
+spur,2436,656,17.61%,3.71,1175,1261,0
+,,,,,,
+TRAIN SPLIT DETAILS,,,,,,
+Metric,Value,,,,,
+Total Images,1817,,,,,
+Images with Annotations,1817,,,,,
+Images without Annotations,0,,,,,
+,,,,,,
+Class,Instances,Images with Class,,,,
+falsecopper,809,188,,,,
+missinghole,901,202,,,,
+mousebite,1528,347,,,,
+opencircuit,1612,427,,,,
+pinhole,1440,404,,,,
+scratch,1052,414,,,,
+shortcircuit,1332,384,,,,
+spur,1175,325,,,,
+,,,,,,
+VALID SPLIT DETAILS,,,,,,
+Metric,Value,,,,,
+Total Images,1908,,,,,
+Images with Annotations,1908,,,,,
+Images without Annotations,0,,,,,
+,,,,,,
+Class,Instances,Images with Class,,,,
+falsecopper,1210,285,,,,
+missinghole,982,226,,,,
+mousebite,1433,326,,,,
+opencircuit,1437,382,,,,
+pinhole,1371,400,,,,
+scratch,1036,392,,,,
+shortcircuit,1178,337,,,,
+spur,1261,331,,,,
+,,,,,,

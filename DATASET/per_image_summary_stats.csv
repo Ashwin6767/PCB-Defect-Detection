@@ -1,0 +1,27 @@
+OVERALL STATISTICS,,,,
+Metric,Value,Train,Valid,Combined
+Total Images,,3634,3816,7450
+Images with Annotations,,3634,3816,7450
+Total Instances,,19698,19816,39514
+,,,,
+CLASS STATISTICS,,,,
+Class Name,Total Instances,Train Instances,Valid Instances,Images with Class
+falsecopper,4038,1618,2420,946
+missinghole,3766,1802,1964,856
+mousebite,5922,3056,2866,1346
+opencircuit,6098,3224,2874,1618
+pinhole,5622,2880,2742,1608
+scratch,4176,2104,2072,1612
+shortcircuit,5020,2664,2356,1442
+spur,4872,2350,2522,1312
+,,,,
+DISTRIBUTION STATISTICS,,,,
+Class Name,Min per Image,Max per Image,Avg per Image,Images with 0 instances
+falsecopper,0,6,4.27,6504
+missinghole,0,6,4.40,6594
+mousebite,0,6,4.40,6104
+opencircuit,0,6,3.77,5832
+pinhole,0,5,3.50,5842
+scratch,0,4,2.59,5838
+shortcircuit,0,6,3.48,6008
+spur,0,6,3.71,6138
