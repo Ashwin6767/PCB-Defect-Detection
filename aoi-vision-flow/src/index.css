@@ -1,0 +1,246 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AOI Inspector Design System - Industrial/Manufacturing Theme */
+
+@layer base {
+  :root {
+    /* Core Background & Text */
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
+
+    /* Cards & Surfaces */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    /* Popovers */
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    /* Industrial Blue Primary */
+    --primary: 213 94% 35%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 213 94% 45%;
+    --primary-dark: 213 94% 25%;
+
+    /* Secondary - Light Industrial Gray */
+    --secondary: 210 15% 95%;
+    --secondary-foreground: 215 25% 15%;
+
+    /* Muted Tones */
+    --muted: 210 15% 95%;
+    --muted-foreground: 215 10% 45%;
+
+    /* Accent - Bright Tech Blue */
+    --accent: 200 95% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Status Colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 76% 95%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 92% 95%;
+
+    --destructive: 0 84% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-light: 0 84% 95%;
+
+    /* Industrial Surfaces */
+    --metallic: 220 10% 25%;
+    --metallic-light: 220 10% 35%;
+    --metallic-dark: 220 10% 15%;
+
+    /* Borders & Inputs */
+    --border: 214 20% 85%;
+    --input: 214 20% 85%;
+    --ring: 213 94% 35%;
+
+    /* Conveyor Animation */
+    --conveyor-bg: 220 10% 20%;
+    --conveyor-stripe: 220 10% 25%;
+
+    --radius: 0.75rem;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-light)));
+    --gradient-metallic: linear-gradient(90deg, hsl(var(--metallic-dark)), hsl(var(--metallic)), hsl(var(--metallic-light)));
+    --gradient-surface: linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted)));
+
+    /* Shadows */
+    --shadow-industrial: 0 4px 20px hsl(var(--primary) / 0.15);
+    --shadow-elevation: 0 8px 30px hsl(220 10% 25% / 0.1);
+    --shadow-glow-success: 0 0 20px hsl(var(--success) / 0.4);
+    --shadow-glow-error: 0 0 20px hsl(var(--destructive) / 0.4);
+
+    /* Animation Timings */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+/* AOI Inspector Custom Components */
+@layer components {
+  .upload-zone {
+    @apply relative border-2 border-dashed border-primary/30 rounded-lg bg-gradient-to-br from-background to-muted/50 hover:border-primary/50 transition-all duration-300 hover:shadow-[var(--shadow-industrial)];
+  }
+
+  .upload-zone:hover {
+    background: linear-gradient(135deg, hsl(var(--background)), hsl(var(--primary) / 0.05));
+  }
+
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary to-primary-light text-primary-foreground shadow-[var(--shadow-industrial)] hover:shadow-lg hover:scale-105 transition-all duration-300;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground border border-border hover:bg-muted transition-[var(--transition-smooth)];
+  }
+
+  .status-pass {
+    @apply bg-success-light text-success border-l-4 border-success;
+  }
+
+  .status-questionable {
+    @apply bg-warning-light text-warning border-l-4 border-warning;
+  }
+
+  .status-fail {
+    @apply bg-destructive-light text-destructive border-l-4 border-destructive;
+  }
+
+  .industrial-card {
+    @apply bg-card rounded-lg shadow-[var(--shadow-elevation)] border border-border/50 backdrop-blur-sm;
+  }
+
+  .conveyor-belt {
+    @apply relative bg-gradient-to-r from-metallic-dark via-metallic to-metallic-light overflow-hidden;
+    background-image: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 40px,
+      hsl(var(--conveyor-stripe)) 40px,
+      hsl(var(--conveyor-stripe)) 42px
+    );
+  }
+
+  .pcb-item {
+    @apply absolute top-1/2 transform -translate-y-1/2 w-16 h-12 bg-gradient-to-br from-green-700 to-green-900 rounded-sm shadow-lg;
+    animation: moveLeft 8s linear infinite;
+    animation-fill-mode: forwards;
+    will-change: transform;
+  }
+
+  .inspection-camera {
+    @apply absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full bg-metallic rounded-b-lg p-2 shadow-lg;
+  }
+
+  .flash-pass {
+    animation: flashGreen 0.5s ease-in-out;
+  }
+
+  .flash-questionable {
+    animation: flashYellow 0.5s ease-in-out;
+  }
+
+  .flash-fail {
+    animation: flashRed 0.5s ease-in-out;
+  }
+}
+
+/* Animations */
+@layer utilities {
+  @keyframes moveLeft {
+    0% {
+      left: 100%;
+    }
+    100% {
+      left: -80px;
+    }
+  }
+
+  @keyframes flashGreen {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: var(--shadow-glow-success); }
+  }
+
+  @keyframes flashYellow {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: 0 0 20px rgba(251, 191, 36, 0.8); }
+  }
+
+  @keyframes flashRed {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: var(--shadow-glow-error); }
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out;
+  }
+
+  .animate-stagger-1 { animation-delay: 0.1s; }
+  .animate-stagger-2 { animation-delay: 0.2s; }
+  .animate-stagger-3 { animation-delay: 0.3s; }
+}
