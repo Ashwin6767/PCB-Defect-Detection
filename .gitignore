@@ -1,15 +1,7 @@
 # Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.env
-.venv/
-.env*/
 
 # Node / Frontend
 node_modules/
-.aoi-vision-flow/node_modules/
 dist/
 *.log
 npm-debug.log*
@@ -17,23 +9,18 @@ yarn-debug.log*
 yarn-error.log*
 
 # Build artifacts
-uploads/
-results/
-*.egg-info/
 
 # Model weights (track explicitly if needed)
-*.pt
 
 # Dataset raw images can be large; keep labels & yaml
-DATASET/train/images/
-DATASET/valid/images/
+DATASET/train/
+DATASET/valid/
 
 # YOLO runs (already committed one set; ignore future unless curated)
-runs/
 
 # OS
 .DS_Store
 Thumbs.db
 
 # Notebooks checkpoints
-.ipynb_checkpoints/
+

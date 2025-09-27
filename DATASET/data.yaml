@@ -1,0 +1,13 @@
+train: train/images
+val: valid/images
+test: test/images
+
+names: 
+  0: falsecopper
+  1: missinghole
+  2: mousebite
+  3: opencircuit
+  4: pinhole
+  5: scratch
+  6: shortcircuit
+  7: spur

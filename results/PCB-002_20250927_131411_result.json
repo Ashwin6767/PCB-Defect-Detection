@@ -1,0 +1,14 @@
+{
+  "pcbId": "PCB-002",
+  "status": "PASS",
+  "defectType": "None",
+  "timestamp": "2025-09-27T13:14:12.021625",
+  "metrics": {
+    "total_defects": 0
+  },
+  "defects_detected": [],
+  "images": {
+    "original": "PCB-002_20250927_131411.jpg",
+    "annotated": "PCB-002_20250927_131411_annotated.jpg"
+  }
+}

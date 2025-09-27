@@ -1,0 +1,92 @@
+{
+  "pcbId": "PCB-005",
+  "status": "FAIL",
+  "defectType": "Shortcircuit",
+  "timestamp": "2025-09-27T13:14:12.331699",
+  "metrics": {
+    "total_defects": 7
+  },
+  "defects_detected": [
+    {
+      "type": "shortcircuit",
+      "confidence": 0.804,
+      "bbox": [
+        138.8,
+        361.9,
+        148.0,
+        369.6
+      ],
+      "area": 70.1
+    },
+    {
+      "type": "missinghole",
+      "confidence": 0.612,
+      "bbox": [
+        283.2,
+        181.2,
+        290.1,
+        186.6
+      ],
+      "area": 37.2
+    },
+    {
+      "type": "missinghole",
+      "confidence": 0.494,
+      "bbox": [
+        163.0,
+        367.6,
+        170.5,
+        372.9
+      ],
+      "area": 39.5
+    },
+    {
+      "type": "shortcircuit",
+      "confidence": 0.491,
+      "bbox": [
+        173.7,
+        356.4,
+        183.1,
+        363.0
+      ],
+      "area": 62.4
+    },
+    {
+      "type": "missinghole",
+      "confidence": 0.382,
+      "bbox": [
+        203.8,
+        265.6,
+        210.7,
+        271.5
+      ],
+      "area": 40.7
+    },
+    {
+      "type": "missinghole",
+      "confidence": 0.338,
+      "bbox": [
+        323.9,
+        272.8,
+        332.2,
+        279.6
+      ],
+      "area": 56.4
+    },
+    {
+      "type": "missinghole",
+      "confidence": 0.258,
+      "bbox": [
+        43.9,
+        300.4,
+        51.0,
+        304.7
+      ],
+      "area": 30.4
+    }
+  ],
+  "images": {
+    "original": "PCB-005_20250927_131412.jpg",
+    "annotated": "PCB-005_20250927_131412_annotated.jpg"
+  }
+}
