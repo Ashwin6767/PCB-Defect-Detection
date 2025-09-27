@@ -37,10 +37,10 @@ const InspectionPage = () => {
   useEffect(() => {
     // Load results from sessionStorage (set by UploadPage)
     const storedResults = sessionStorage.getItem('inspectionResults');
-    
+
     if (storedResults) {
       const parsedResults: InspectionResult[] = JSON.parse(storedResults);
-      
+
       // Simulate real-time processing display
       let index = 0;
       const interval = setInterval(() => {
@@ -53,7 +53,7 @@ const InspectionPage = () => {
           clearInterval(interval);
         }
       }, 1500); // Show one result every 1.5 seconds
-      
+
       return () => clearInterval(interval);
     } else {
       // No results found, redirect back to upload
@@ -126,7 +126,7 @@ const InspectionPage = () => {
               <Camera className="h-8 w-8 text-blue-500" />
             </div>
           </div>
-          
+
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -136,7 +136,7 @@ const InspectionPage = () => {
               <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
           </div>
-          
+
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -146,7 +146,7 @@ const InspectionPage = () => {
               <XCircle className="h-8 w-8 text-red-500" />
             </div>
           </div>
-          
+
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -167,16 +167,15 @@ const InspectionPage = () => {
                 <span className="ml-2 text-sm text-blue-600">Processing...</span>
               )}
             </h2>
-            
+
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {results.map((result, index) => (
                 <div
                   key={result.pcbId}
-                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${
-                    selectedResult?.pcbId === result.pcbId
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 ${selectedResult?.pcbId === result.pcbId
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                   onClick={() => setSelectedResult(result)}
                 >
                   <div className="flex items-center justify-between">
@@ -198,7 +197,7 @@ const InspectionPage = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   {result.metrics && (
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600">
                       <span>Defects: {result.metrics.total_defects}</span>
@@ -215,7 +214,7 @@ const InspectionPage = () => {
             <h2 className="text-xl font-semibold text-gray-800 mb-4">
               Detailed Analysis
             </h2>
-            
+
             {selectedResult ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -224,7 +223,7 @@ const InspectionPage = () => {
                     {selectedResult.status}
                   </span>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="font-medium text-gray-700">Primary Defect:</p>
@@ -282,8 +281,8 @@ const InspectionPage = () => {
 
                 {selectedResult.images && (
                   <div className="space-y-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       size="sm"
                       onClick={() => window.open(`http://localhost:5000/api/images/${selectedResult.images?.annotated}`, '_blank')}
                     >

@@ -357,20 +357,91 @@ const InspectionPage = () => {
                     </h4>
 
                     {selectedResult.videoId && selectedResult.files?.processed ? (
-                      // Video summary view - show full video
+                      // Video summary view - show full processed video
                       <div className="space-y-4">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                          <h5 className="font-medium text-green-900 mb-1">Complete Video Analysis</h5>
+                          <div className="text-sm text-green-700">
+                            Full processed video with frame-by-frame defect detection overlays
+                          </div>
+                        </div>
                         <div className="relative border rounded-lg overflow-hidden">
                           <video
                             id="defect-video"
                             controls
                             className="w-full h-auto max-h-96"
                             src={`http://localhost:5000/api/videos/${selectedResult.files.processed}`}
+                            onLoadStart={() => {
+                              console.log('🎥 Video loading started:', selectedResult.files?.processed);
+                              console.log('🎥 Full URL:', `http://localhost:5000/api/videos/${selectedResult.files?.processed}`);
+                            }}
+                            onLoadedMetadata={() => {
+                              console.log('🎥 Video metadata loaded');
+                              const video = document.getElementById('defect-video') as HTMLVideoElement;
+                              if (video) {
+                                console.log('🎥 Video duration:', video.duration);
+                                console.log('🎥 Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+                              }
+                            }}
+                            onCanPlay={() => {
+                              console.log('🎥 Video can play:', selectedResult.files?.processed);
+                            }}
+                            onError={(e) => {
+                              const videoElement = e.target as HTMLVideoElement;
+                              console.error('❌ Video loading error:', {
+                                error: e,
+                                src: videoElement.src,
+                                networkState: videoElement.networkState,
+                                readyState: videoElement.readyState,
+                                filename: selectedResult.files?.processed
+                              });
+                              
+                              // Show detailed error message
+                              const container = videoElement.parentElement;
+                              if (container) {
+                                container.innerHTML = `
+                                  <div class="flex items-center justify-center h-48 bg-red-50 border border-red-200 text-red-700">
+                                    <div class="text-center p-4">
+                                      <h4 class="font-bold mb-2">❌ Video Loading Failed</h4>
+                                      <p class="text-sm mb-1"><strong>File:</strong> ${selectedResult.files?.processed}</p>
+                                      <p class="text-xs mb-1"><strong>URL:</strong> http://localhost:5000/api/videos/${selectedResult.files?.processed}</p>
+                                      <p class="text-xs mb-3"><strong>Network State:</strong> ${videoElement.networkState} | <strong>Ready State:</strong> ${videoElement.readyState}</p>
+                                      <div class="space-x-2">
+                                        <button 
+                                          onclick="window.open('http://localhost:5000/api/videos/${selectedResult.files?.processed}', '_blank')"
+                                          class="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                                        >
+                                          Open Direct Link
+                                        </button>
+                                        <button 
+                                          onclick="window.open('video_test.html', '_blank')"
+                                          class="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                                        >
+                                          Test Page
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                `;
+                              }
+                            }}
                           >
                             Your browser does not support the video tag.
                           </video>
                           <div className="absolute top-2 left-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm">
                             Video Summary - {selectedResult.status === 'PASS' ? '✓ PASS' : selectedResult.status === 'QUESTIONABLE' ? '? QUESTIONABLE' : '✗ FAIL'}
                           </div>
+                        </div>
+                        
+                        {/* Video Controls Info */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <h6 className="font-medium text-blue-900 mb-2">Video Analysis Features</h6>
+                          <ul className="text-sm text-blue-700 space-y-1">
+                            <li>• Green text: Frames processed with YOLO detection</li>
+                            <li>• Red text: Frames skipped (700ms sampling)</li>
+                            <li>• Bounding boxes: Detected defects with confidence scores</li>
+                            <li>• Frame counter: Shows processing progress</li>
+                          </ul>
                         </div>
                       </div>
                     ) : selectedResult.frameNumber && selectedResult.images?.annotated ? (

@@ -179,6 +179,96 @@ class YOLOv10AOIBackend:
         primary = max(defects, key=lambda x: x['confidence'])
         return primary['type'].replace('_', ' ').title()
     
+    def _convert_to_h264_mp4(self, input_path, output_path):
+        """Convert video to browser-compatible H.264 MP4 using ffmpeg or fallback"""
+        
+        # Method 1: Try ffmpeg (best quality and compatibility)
+        try:
+            import subprocess
+            
+            print("Attempting ffmpeg conversion...")
+            
+            # Use your exact command for maximum browser compatibility
+            cmd = [
+                'ffmpeg', '-y',  # -y to overwrite output file
+                '-i', input_path,  # input file
+                '-c:v', 'libx264',  # H.264 codec (best browser support)
+                '-crf', '23',  # quality (lower = better quality)
+                '-preset', 'fast',  # encoding speed
+                '-c:a', 'aac',  # audio codec (if any)
+                '-movflags', '+faststart',  # optimize for web streaming
+                output_path
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            
+            if result.returncode == 0:
+                print("✅ FFmpeg H.264 conversion successful")
+                return True
+            else:
+                print(f"❌ FFmpeg failed: {result.stderr}")
+                
+        except (ImportError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+            print(f"FFmpeg not available: {e}")
+        
+        # Method 2: Try OpenCV with different approach
+        print("Trying OpenCV conversion to MP4...")
+        
+        try:
+            cap = cv2.VideoCapture(input_path)
+            if not cap.isOpened():
+                raise Exception("Cannot open input video")
+            
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+            # Try different MP4-compatible codecs
+            mp4_codecs = [
+                ('mp4v', 'MP4V'),
+                ('MJPG', 'Motion JPEG'),
+                ('XVID', 'XVID')
+            ]
+            
+            for codec, desc in mp4_codecs:
+                try:
+                    fourcc = cv2.VideoWriter_fourcc(*codec)
+                    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+                    
+                    if out.isOpened():
+                        print(f"Using {desc} codec for MP4")
+                        
+                        # Copy all frames
+                        frame_count = 0
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        
+                        while True:
+                            ret, frame = cap.read()
+                            if not ret:
+                                break
+                            
+                            out.write(frame)
+                            frame_count += 1
+                        
+                        out.release()
+                        cap.release()
+                        
+                        print(f"OpenCV conversion completed: {frame_count} frames")
+                        return True
+                    else:
+                        out.release()
+                        
+                except Exception as e:
+                    print(f"{desc} failed: {e}")
+            
+            cap.release()
+            
+        except Exception as e:
+            print(f"OpenCV conversion failed: {e}")
+        
+        print("❌ All conversion methods failed")
+        return False
+    
     def process_pcb_video(self, video_file, video_id=None):
         """Process a video file for PCB defect detection"""
         
@@ -217,10 +307,43 @@ class YOLOv10AOIBackend:
             if frame_width == 0 or frame_height == 0 or fps == 0:
                 raise Exception("Invalid video properties - video may be corrupted")
             
-            # Setup output video
-            output_video_path = os.path.join("results", f"{video_id}_{timestamp}_processed.mp4")
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(output_video_path, fourcc, fps, (frame_width, frame_height))
+            # Create output video with universally supported codec
+            # Try AVI with XVID first (most compatible), then fallback to MJPG
+            
+            video_formats = [
+                (f"{video_id}_{timestamp}_processed.avi", 'XVID', 'XVID/AVI (most compatible)'),
+                (f"{video_id}_{timestamp}_processed.avi", 'MJPG', 'MJPG/AVI (good compatibility)'),
+                (f"{video_id}_{timestamp}_processed.mp4", 'MJPG', 'MJPG/MP4 (fallback)')
+            ]
+            
+            out = None
+            output_video_path = None
+            used_format = None
+            
+            for filename, codec, desc in video_formats:
+                try:
+                    test_path = os.path.join("results", filename)
+                    fourcc = cv2.VideoWriter_fourcc(*codec)
+                    test_out = cv2.VideoWriter(test_path, fourcc, fps, (frame_width, frame_height))
+                    
+                    if test_out.isOpened():
+                        print(f"✅ Using {desc}")
+                        out = test_out
+                        output_video_path = test_path
+                        used_format = f"{codec}/{filename.split('.')[-1].upper()}"
+                        break
+                    else:
+                        test_out.release()
+                        print(f"❌ {desc} failed")
+                        
+                except Exception as e:
+                    print(f"❌ {desc} error: {e}")
+            
+            if not out or not out.isOpened():
+                raise Exception("Failed to create video writer with any supported codec")
+            
+            print(f"Video writer created successfully with {used_format}")
+            print(f"Output file: {output_video_path}")
             
             if not out.isOpened():
                 raise Exception("Failed to create output video writer")
@@ -285,11 +408,52 @@ class YOLOv10AOIBackend:
                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
                 
                 # Write frame to output video
-                out.write(annotated_frame)
+                if annotated_frame is not None and annotated_frame.shape[:2] == (frame_height, frame_width):
+                    out.write(annotated_frame)
+                else:
+                    print(f"Warning: Frame {frame_count} has wrong dimensions or is None")
+                    if annotated_frame is not None:
+                        print(f"Expected: {frame_height}x{frame_width}, Got: {annotated_frame.shape}")
+                    # Write original frame as fallback
+                    out.write(frame)
             
             # Cleanup
             cap.release()
             out.release()
+            
+            # Verify output video was created successfully
+            if not os.path.exists(output_video_path):
+                raise Exception(f"Failed to create output video: {output_video_path}")
+            
+            output_size = os.path.getsize(output_video_path)
+            print(f"Output video created successfully: {output_video_path} ({output_size} bytes)")
+            
+            # Test if the created video can be opened (validation)
+            test_cap = cv2.VideoCapture(output_video_path)
+            if not test_cap.isOpened():
+                test_cap.release()
+                raise Exception(f"Created video cannot be opened: {output_video_path}")
+            
+            test_frame_count = int(test_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            test_cap.release()
+            print(f"Video validation successful: {test_frame_count} frames")
+            
+            # Convert to browser-compatible H.264 MP4
+            browser_video_path = os.path.join("results", f"{video_id}_{timestamp}_processed.mp4")
+            
+            try:
+                print("Converting to browser-compatible H.264 MP4...")
+                success = self._convert_to_h264_mp4(output_video_path, browser_video_path)
+                
+                if success and os.path.exists(browser_video_path) and os.path.getsize(browser_video_path) > 0:
+                    print("✅ H.264 MP4 conversion successful")
+                    # Keep both files but use MP4 for serving
+                    output_video_path = browser_video_path
+                else:
+                    print("⚠️ H.264 conversion failed, using AVI original")
+                    
+            except Exception as e:
+                print(f"⚠️ H.264 conversion failed: {e}, using AVI original")
             
             # Calculate processed frames and defect density
             processed_frames = (total_frames + frame_interval - 1) // frame_interval  # Ceiling division
@@ -532,19 +696,58 @@ def serve_image(filename):
     
     return jsonify({'error': 'Image not found'}), 404
 
-@app.route('/api/videos/<path:filename>')
+@app.route('/api/videos/<path:filename>', methods=['GET', 'HEAD', 'OPTIONS'])
 def serve_video(filename):
-    """Serve uploaded and processed videos"""
+    """Serve uploaded and processed videos with proper headers for browser compatibility"""
     
-    # Try uploads directory first
-    if os.path.exists(os.path.join('uploads', filename)):
-        return send_from_directory('uploads', filename)
+    # Handle CORS preflight
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Range'
+        return response
     
-    # Then try results directory
-    if os.path.exists(os.path.join('results', filename)):
-        return send_from_directory('results', filename)
-    
-    return jsonify({'error': 'Video not found'}), 404
+    try:
+        file_path = None
+        directory = None
+        
+        # Try uploads directory first
+        if os.path.exists(os.path.join('uploads', filename)):
+            file_path = os.path.join('uploads', filename)
+            directory = 'uploads'
+        # Then try results directory
+        elif os.path.exists(os.path.join('results', filename)):
+            file_path = os.path.join('results', filename)
+            directory = 'results'
+        
+        if file_path:
+            print(f"Serving video: {filename} from {directory}")
+            response = send_from_directory(directory, filename)
+            
+            # Add headers for better browser compatibility
+            response.headers['Content-Type'] = 'video/mp4'
+            response.headers['Accept-Ranges'] = 'bytes'
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, HEAD, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Range'
+            
+            return response
+        
+        print(f"Video file not found: {filename}")
+        print(f"Checked paths:")
+        print(f"  - uploads/{filename}: {os.path.exists(os.path.join('uploads', filename))}")
+        print(f"  - results/{filename}: {os.path.exists(os.path.join('results', filename))}")
+        return jsonify({'error': 'Video not found'}), 404
+        
+    except Exception as e:
+        print(f"Error serving video {filename}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/extract-frame/<video_id>/<int:frame_number>')
 def extract_frame(video_id, frame_number):
@@ -619,6 +822,151 @@ def health_check():
         'timestamp': datetime.now().isoformat()
     })
 
+@app.route('/api/test-video')
+def test_video():
+    """Test endpoint to check video files"""
+    try:
+        video_files = []
+        if os.path.exists('results'):
+            for file in os.listdir('results'):
+                if file.endswith('.mp4'):
+                    file_path = os.path.join('results', file)
+                    file_size = os.path.getsize(file_path)
+                    
+                    # Test if video can be opened
+                    import cv2
+                    cap = cv2.VideoCapture(file_path)
+                    is_valid = cap.isOpened()
+                    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) if is_valid else 0
+                    fps = cap.get(cv2.CAP_PROP_FPS) if is_valid else 0
+                    cap.release()
+                    
+                    video_files.append({
+                        'filename': file,
+                        'size': file_size,
+                        'url': f'/api/videos/{file}',
+                        'direct_url': f'http://localhost:5000/api/videos/{file}',
+                        'is_valid': is_valid,
+                        'frame_count': frame_count,
+                        'fps': fps
+                    })
+        
+        return jsonify({
+            'video_files': video_files,
+            'count': len(video_files),
+            'results_dir_exists': os.path.exists('results')
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/simple-video-test', methods=['POST'])
+def simple_video_test():
+    """Simple video test - just copy input to output without processing"""
+    
+    try:
+        if 'video' not in request.files:
+            return jsonify({'error': 'No video file provided'}), 400
+        
+        file = request.files['video']
+        if file.filename == '':
+            return jsonify({'error': 'No video file selected'}), 400
+        
+        # Save input video
+        input_path = os.path.join("uploads", f"test_input.mp4")
+        file.save(input_path)
+        
+        # Simple copy without any processing
+        output_path = os.path.join("results", f"test_output.mp4")
+        
+        cap = cv2.VideoCapture(input_path)
+        if not cap.isOpened():
+            return jsonify({'error': 'Cannot open input video'}), 400
+        
+        # Get properties
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        # Create writer
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+        
+        if not out.isOpened():
+            cap.release()
+            return jsonify({'error': 'Cannot create output video'}), 400
+        
+        # Copy frames
+        frame_count = 0
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # Just add simple text
+            cv2.putText(frame, f"Frame {frame_count}", (10, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            
+            out.write(frame)
+            frame_count += 1
+        
+        cap.release()
+        out.release()
+        
+        return jsonify({
+            'status': 'success',
+            'input_file': 'test_input.mp4',
+            'output_file': 'test_output.mp4',
+            'frames_processed': frame_count,
+            'output_url': f'/api/videos/test_output.mp4'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/test-video-page')
+def test_video_page():
+    """Simple HTML page to test video playback"""
+    video_files = []
+    if os.path.exists('results'):
+        for file in os.listdir('results'):
+            if file.endswith('.mp4'):
+                video_files.append(file)
+    
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Video Test Page</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            video { width: 100%; max-width: 800px; margin: 10px 0; }
+            .video-info { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+        </style>
+    </head>
+    <body>
+        <h1>AOI Video Test Page</h1>
+        <p>This page tests video playback directly from the backend.</p>
+    """
+    
+    for video_file in video_files:
+        html += f"""
+        <div class="video-info">
+            <h3>{video_file}</h3>
+            <p>URL: <a href="/api/videos/{video_file}" target="_blank">/api/videos/{video_file}</a></p>
+            <video controls>
+                <source src="/api/videos/{video_file}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        """
+    
+    html += """
+    </body>
+    </html>
+    """
+    
+    return html
+
 if __name__ == '__main__':
     print("🚀 Starting YOLOv10 AOI Backend Server...")
     print("🤖 Model loaded successfully!")
@@ -633,5 +981,6 @@ if __name__ == '__main__':
     print("   GET  /api/results/<pcb_id> - Get detailed results")
     print("   POST /api/cleanup - Clean up old files")
     print("   GET  /api/health - Health check")
+    print("   GET  /api/test-video - List available video files")
     
     app.run(host='0.0.0.0', port=5000, debug=True)

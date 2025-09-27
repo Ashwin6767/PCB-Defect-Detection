@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Video Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        video { width: 100%; max-width: 800px; margin: 10px 0; border: 1px solid #ccc; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>AOI Video Test Page</h1>
+    
+    <div class="test-section">
+        <h2>Original Processed Video Test</h2>
+        <p>Testing the original processed video:</p>
+        <video controls>
+            <source src="http://localhost:5000/api/videos/VIDEO-5c7413f7_20250927_131547_processed.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <p>URL: <a href="http://localhost:5000/api/videos/VIDEO-5c7413f7_20250927_131547_processed.mp4" target="_blank">
+            http://localhost:5000/api/videos/VIDEO-5c7413f7_20250927_131547_processed.mp4
+        </a></p>
+    </div>
+    
+    <div class="test-section">
+        <h2>H.264 Browser-Compatible Test</h2>
+        <p>Testing H.264 MP4 created with FFmpeg (should work perfectly in browsers):</p>
+        <video controls>
+            <source src="test_h264_browser.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <p>File: test_h264_browser.mp4 (H.264 + AAC + MP4)</p>
+        <p>This should play in ALL browsers including Vivaldi!</p>
+    </div>
+    
+    <div class="test-section">
+        <h2>Original Video Test</h2>
+        <p>Testing the original video for comparison:</p>
+        <video controls>
+            <source src="http://localhost:5000/api/videos/VIDEO-5c7413f7_20250927_131547.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+        <p>URL: <a href="http://localhost:5000/api/videos/VIDEO-5c7413f7_20250927_131547.mp4" target="_blank">
+            http://localhost:5000/api/videos/VIDEO-5c7413f7_20250927_131547.mp4
+        </a></p>
+    </div>
+    
+    <div class="test-section">
+        <h2>Debug Info</h2>
+        <button onclick="testVideoLoad()">Test Video Loading</button>
+        <div id="debug-output"></div>
+    </div>
+    
+    <script>
+        function testVideoLoad() {
+            const debugDiv = document.getElementById('debug-output');
+            debugDiv.innerHTML = '<p>Testing video loading...</p>';
+            
+            const video = document.createElement('video');
+            video.src = 'http://localhost:5000/api/videos/VIDEO-5c7413f7_20250927_131547_processed.mp4';
+            
+            video.onloadstart = () => {
+                debugDiv.innerHTML += '<p>✅ Video loading started</p>';
+            };
+            
+            video.oncanplay = () => {
+                debugDiv.innerHTML += '<p>✅ Video can play</p>';
+                debugDiv.innerHTML += `<p>Duration: ${video.duration} seconds</p>`;
+                debugDiv.innerHTML += `<p>Video dimensions: ${video.videoWidth}x${video.videoHeight}</p>`;
+            };
+            
+            video.onerror = (e) => {
+                debugDiv.innerHTML += `<p>❌ Video error: ${e.message || 'Unknown error'}</p>`;
+                debugDiv.innerHTML += `<p>Network state: ${video.networkState}</p>`;
+                debugDiv.innerHTML += `<p>Ready state: ${video.readyState}</p>`;
+            };
+            
+            video.load();
+        }
+    </script>
+</body>
+</html>

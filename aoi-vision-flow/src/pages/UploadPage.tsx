@@ -166,7 +166,7 @@ const UploadPage = () => {
       // Create demo video results for fallback (summary + individual frames)
       if (uploadMode === 'video') {
         const demoVideoResults = [
-          // Summary result
+          // Summary result with video file
           {
             pcbId: 'DEMO-VIDEO-001-SUMMARY',
             videoId: 'DEMO-VIDEO-001',
@@ -182,6 +182,10 @@ const UploadPage = () => {
               fps: 30.0,
               processing_interval_ms: 700,
               frame_interval: 7
+            },
+            files: {
+              original: 'demo_original.mp4',
+              processed: 'demo_processed.mp4'
             }
           },
           // Individual frame results
