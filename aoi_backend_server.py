@@ -970,7 +970,7 @@ def test_video_page():
 if __name__ == '__main__':
     print("🚀 Starting YOLOv10 AOI Backend Server...")
     print("🤖 Model loaded successfully!")
-    print("🌐 Server will be available at: http://localhost:5000")
+    print("🌐 Server will be available at: http://localhost:5001")
     print("📡 API Endpoints:")
     print("   POST /api/inspect - Single PCB inspection")
     print("   POST /api/inspect-batch - Batch PCB inspection")
@@ -983,4 +983,4 @@ if __name__ == '__main__':
     print("   GET  /api/health - Health check")
     print("   GET  /api/test-video - List available video files")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
