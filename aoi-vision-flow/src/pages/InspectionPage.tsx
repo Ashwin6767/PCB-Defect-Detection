@@ -15,7 +15,8 @@ import {
   XCircle,
   Eye,
   Maximize2,
-  BarChart3
+  BarChart3,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -142,8 +143,8 @@ const sampleResults: InspectionResult[] = [
   },
   {
     pcbId: 'PCB-003',
-    status: 'FAIL',
-    defectType: 'Missing Component',
+    status: 'QUESTIONABLE',
+    defectType: 'Possible Missing Component',
     metrics: {
       total_defects: 1,
       total_frames: 1,
@@ -210,6 +211,8 @@ const InspectionPage = () => {
   const [isInspecting, setIsInspecting] = useState(true);
   const [selectedResult, setSelectedResult] = useState<InspectionResult | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logResult, setLogResult] = useState<InspectionResult | null>(null);
   const [expectedResultCount, setExpectedResultCount] = useState(0);
   const [uploadMode, setUploadMode] = useState<'images' | 'video'>('images');
   const [inspectionSpeed, setInspectionSpeed] = useState(1);
@@ -733,6 +736,21 @@ const InspectionPage = () => {
                               <Activity size={12} />
                               Sample
                             </span>
+                          )}
+
+                          {result.status === 'QUESTIONABLE' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setLogResult(result);
+                                setShowLogModal(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <FileText size={14} className="mr-1" />
+                              Log
+                            </Button>
                           )}
 
                           {result.status === 'FAIL' && (
@@ -2259,6 +2277,73 @@ const InspectionPage = () => {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Log Input Modal */}
+        {showLogModal && logResult && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-card border border-border rounded-lg max-w-md w-full p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-foreground">Log Inspection Result</h3>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowLogModal(false)}
+                  size="sm"
+                >
+                  ×
+                </Button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-muted-foreground mb-2">
+                  PCB ID: <span className="font-medium text-foreground">{logResult.pcbId || logResult.videoId}</span>
+                </p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Current Status: <span className="font-medium text-warning">QUESTIONABLE</span>
+                </p>
+                <p className="text-sm text-foreground mb-4">
+                  Please select the correct classification for this inspection result:
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    console.log('Logged as GOOD:', logResult.pcbId || logResult.videoId);
+                    // Here you would typically send this to your backend
+                    // fetch('/api/log-result', { method: 'POST', body: JSON.stringify({ id: logResult.pcbId, classification: 'GOOD' }) })
+                    setShowLogModal(false);
+                  }}
+                  className="flex-1 bg-success hover:bg-success/90 text-white"
+                >
+                  <CheckCircle size={16} className="mr-2" />
+                  Good
+                </Button>
+                <Button
+                  onClick={() => {
+                    console.log('Logged as DEFECTIVE:', logResult.pcbId || logResult.videoId);
+                    // Here you would typically send this to your backend
+                    // fetch('/api/log-result', { method: 'POST', body: JSON.stringify({ id: logResult.pcbId, classification: 'DEFECTIVE' }) })
+                    setShowLogModal(false);
+                  }}
+                  className="flex-1 bg-destructive hover:bg-destructive/90 text-white"
+                >
+                  <XCircle size={16} className="mr-2" />
+                  Defective
+                </Button>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-border">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowLogModal(false)}
+                  className="w-full"
+                >
+                  Cancel
+                </Button>
               </div>
             </div>
           </div>
